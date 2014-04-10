@@ -203,6 +203,9 @@ for arg in sys.argv[1:]:
 
 # Construct name of socket
 socket_path = '%s.%s~%s' % ('/dev/shm/', PROGRAM_NAME, os.environ['USER'])
+'''
+The pathname of the interprocess communication socket for nightshift
+'''
 
 
 def run_as_daemon(sock):
