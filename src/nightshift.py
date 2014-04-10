@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import sys
 import socket
+import signal
 import threading
 from subprocess import Popen, PIPE
 
@@ -201,11 +202,12 @@ red_status, red_running = True, True
 red_condition = None
 
 
-def read_status(proc):
+def read_status(proc, sock):
     '''
     Read status from redshift
     
-    @param  proc:Popen  The redshift process
+    @param  proc:Popen   The redshift process
+    @param  sock:socket  The server socket
     '''
     global red_brightness, red_temperature
     global red_brightnesses, red_temperatures
@@ -219,7 +221,7 @@ def read_status(proc):
         got = got.decode('utf-8', 'replace')[:-1]
         (key, value) = got.split(': ')
         if released:
-            red_condition.aquire()
+            red_condition.acquire()
         try:
             if key == 'Location':
                 red_location = [float(v) for v in value.split(', ')]
@@ -255,10 +257,57 @@ def read_status(proc):
         except:
             pass
     if released:
-        red_condition.aquire()
+        red_condition.acquire()
     red_running = False
     red_condition.notify_all()
     red_condition.release()
+    sock.shutdown(socket.SHUT_RDWR)
+
+
+def use_client(sock, proc):
+    '''
+    Communication with client
+    
+    @param  sock:socket  The socket connected to the client
+    @param  proc:Popen   The redshift process
+    '''
+    buf = ''
+    closed = False
+    while not closed:
+        got = sock.recv(128).decode('utf-8', 'error')
+        if (got is None) or (len(got) == 0):
+            break
+        buf += got
+        while '\n' in buf:
+            buf = buf.split('\n')
+            message, buf = buf[0], '\n'.join(buf[1:])
+            if message == 'status':
+                red_condition.acquire()
+                message =  'Current brightness: %f\n' % red_brightness
+                message += 'Daytime brightness: %f\n' % red_brightnesses[0]
+                message += 'Night brightness: %f\n' % red_brightnesses[1]
+                message += 'Current temperature: %f\n' % red_temperature
+                message += 'Daytime temperature: %f\n' % red_temperatures[0]
+                message += 'Night temperature: %f\n' % red_temperatures[1]
+                message += 'Dayness: %f\n' % red_period
+                message += 'Latitude: %f\n' % red_location[0]
+                message += 'Longitude: %f\n' % red_location[1]
+                message += 'Enabled: %s\n' % ('yes' if red_status else 'no')
+                message += 'Running: %s\n' % ('yes' if red_running else 'no')
+                sock.sendall(message.encode('utf-8'))
+                red_condition.release()
+                pass
+            elif message == 'toggle':
+                proc.send_signal(signal.SIGUSR1)
+            elif message == 'kill':
+                proc.terminate()
+                import time
+                time.sleep(0.1) ## XXX this required for redshift to catch both signals properly
+            elif message == 'close':
+                closed = True
+            elif message == 'listen':
+                pass ## TODO
+    sock.close()
 
 
 def run_as_daemon(sock):
@@ -267,10 +316,10 @@ def run_as_daemon(sock):
     
     @param  sock:socket  The server socket
     '''
-    global red_condition
+    global red_condition, red_pid
     
     # Create status condition
-    red_condition = thread.Condition()
+    red_condition = threading.Condition()
     
     # Start redshift
     command = ['redshift'] + red_opts
@@ -279,11 +328,24 @@ def run_as_daemon(sock):
     proc = Popen(command, stdout = PIPE, stderr = open(os.devnull))
     
     # Read status from redshift
-    thread = threading.Thread(target = read_status)
+    thread = threading.Thread(target = read_status, args = (proc, sock))
     thread.setDaemon(True)
     thread.start()
     
-    # TODO
+    red_condition.acquire()
+    while red_running:
+        red_condition.release()
+        try:
+            (client_sock, _client_address) = sock.accept()
+        except:
+            pass # We have shut down the socket so that accept halts
+        client_thread = threading.Thread(target = use_client, args = (client_sock, proc))
+        client_thread.setDaemon(True)
+        client_thread.start()
+        red_condition.acquire()
+    
+    red_condition.release()
+    thread.join()
 
 
 if daemon:
@@ -292,7 +354,10 @@ if daemon:
         sys.exit(1)
     
     # Create server socket
-    os.unlink(socket_path)
+    try:
+        os.unlink(socket_path)
+    except:
+        pass # The fill does (probably) not exist
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(socket_path)
     sock.listen(5)
@@ -336,7 +401,10 @@ if sock is None:
         os.close(sys.stdout.fileno())
         
         # Create server socket
-        os.unlink(socket_path)
+        try:
+            os.unlink(socket_path)
+        except:
+            pass # The fill does (probably) not exist
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.bind(socket_path)
         sock.listen(5)
@@ -373,30 +441,34 @@ if sock is None:
 
 # Get redshift status
 if status:
-    sock.sendall('status\n')
+    sock.sendall('status\n'.encode('utf-8'))
+    sock.sendall('close\n'.encode('utf-8'))
     while True:
         got = sock.recv(1024)
         if (got is None) or (len(got) == 0):
             break
         sys.stdout.buffer.write(got)
-    sys.stdout.buffer.flush()
+        sys.stdout.buffer.flush()
 
 # Temporarily disable or enable redshift
 if toggle:
-    sock.sendall('toggle\n')
+    sock.sendall('toggle\n'.encode('utf-8'))
 
 # Kill redshift and the night daemon
 if kill >= 1:
-    sock.sendall('kill\n')
+    sock.sendall('kill\n'.encode('utf-8'))
 
 # Kill redshift and the night daemon immediately
 if kill >= 2:
-    sock.sendall('kill\n')
+    sock.sendall('kill\n'.encode('utf-8'))
+
+if toggle or (kill > 0):
+    sock.sendall('close\n'.encode('utf-8'))
 
 
 # Start user interface
 if (kill == 0) and not (status or toggle):
-    sock.sendall('listen\n')
+    sock.sendall('listen\n'.encode('utf-8'))
     pass # TODO
 
 
