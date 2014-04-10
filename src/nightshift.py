@@ -597,22 +597,25 @@ if config_file is None:
             except:
                 return
         else:
+            # Resolve environment variable or use empty string if none is selected
             if (var is None) or (var in os.environ) and (not os.environ[var] == ''):
                 var = '' if var is None else os.environ[var]
             else:
                 return
         paths = [var]
+        # Split environment variable value if it is a multi valeu variable
         if multi and os.pathsep in var:
             paths = [v for v in var.split(os.pathsep) if not v == '']
+        # Add files according to patterns
         for p in ps:
             p = p.replace('/', os.sep).replace('%', PROGRAM_NAME)
             for v in paths:
                 files.append(v + p)
-    add_files('XDG_CONFIG_HOME', '/%/%rc')
-    add_files('HOME', '/.config/%/%rc', '/.%rc')
-    add_files('~', '/.config/%/%rc', '/.%rc')
-    add_files('XDG_CONFIG_DIRS', '/.config/%/%rc', '/.%rc', multi = True)
-    add_files(None, '/etc/%rc')
+    add_files('XDG_CONFIG_HOME', '/%/%rc', '/%rc')
+    add_files('HOME',            '/.config/%/%rc', '/.%rc')
+    add_files('~',               '/.config/%/%rc', '/.%rc')
+    add_files('XDG_CONFIG_DIRS', '/%rc', multi = True)
+    add_files(None,              '/etc/%rc')
     for file in files:
         # If the file we exists,
         if os.path.exists(file):
