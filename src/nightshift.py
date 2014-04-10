@@ -333,8 +333,6 @@ def use_client(sock, proc):
                 proc.send_signal(signal.SIGUSR1)
             elif message == 'kill':
                 proc.terminate()
-                import time
-                time.sleep(0.1) ## XXX this required for redshift to catch both signals properly
             elif message == 'close':
                 closed = True
             elif message == 'listen':
