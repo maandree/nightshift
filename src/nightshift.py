@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- python -*-
 copyright='''
+nightshift - A terminal user interface for redshift
 Copyright © 2014  Mattias Andrée (maandree@member.fsf.org)
 
 This program is free software: you can redistribute it and/or modify
