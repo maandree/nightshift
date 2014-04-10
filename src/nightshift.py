@@ -98,15 +98,37 @@ status = False
 :bool  Whether or not to get the current status
 '''
 
+conf_opts = []
+'''
+:list<str>  This list will always have at least one element. This list is filled
+            with options passed to the configurations, with the first element
+            being the configuration file
+'''
+
+config_file = None
+'''
+:str?  The configuration file, same as the first element in `conf_opts`
+'''
+
 
 ## Parse options
 add_to_red_opts = False
+reading_conf_opts = False
 for arg in sys.argv[1:]:
     if add_to_red_opts:
         red_opts.append(arg)
         add_to_red_opts = False
+    elif reading_conf_opts:
+        if arg == '}':
+            reading_conf_opts = False
+        else:
+            conf_opts.append(arg)
+    elif isinstance(config_file, list):
+        config_file = arg
     elif red_args is not None:
         red_args.append(arg)
+    elif arg == '{':
+        reading_conf_opts = True
     elif arg in ('-V', '--version', '-version'):
         ## Print the version of nightshift and of redshift
         print('%s %s' % (PROGRAM_NAME, PROGRAM_VERSION))
@@ -122,7 +144,7 @@ for arg in sys.argv[1:]:
         sys.exit(0)
     elif arg in ('-h', '-?', '--help', '-help'):
         ## Display help message
-        text = '''USAGE: nightshift [OPTIONS...] [-- REDSHIFT-OPTIONS...]
+        text = '''USAGE: nightshift [OPTIONS...] ['{' SCRIPT-OPTIONS... '}'] ['--' REDSHIFT-OPTIONS...]
                   
                   Terminal user interface for redshift, a program for setting the colour
                   temperature of the display according to the time of day.
@@ -136,8 +158,9 @@ for arg in sys.argv[1:]:
                     -x --reset --kill               Remove adjustment from screen
                     +x --toggle                     Temporarily disable or enable adjustments
                     -s --status                     Print status information
+                    +c --script         FILE        Load nightshift configuration script from specified file
                     
-                    -c --config         FILE        Load settings from specified configuration file
+                    -c --config         FILE        Load redshift settings from specified file
                     -b --brightness     DAY:NIGHT   Screen brightness to set at daytime/night
                     -b --brightness     BRIGHTNESS  Screen brightness to apply
                     -t --temperature    DAY:NIGHT   Colour temperature to set at daytime/night
@@ -166,10 +189,13 @@ for arg in sys.argv[1:]:
             if (add_to_red_opts is None) or add_to_red_opts:
                 add_to_red_opts = None
                 red_arg += arg[1]
+            elif isinstance(config_file, list):
+                config_file.append(arg[1])
             elif arg in ('-d', '--daemon'):             daemon = True
             elif arg in ('-x', '--reset', '--kill'):    kill += 1
             elif arg in ('+x', '--toggle'):             toggle = True
             elif arg in ('-s', '--status'):             status = True
+            elif arg in ('+c', '--script'):             config_file = []
             else:
                 add_to_red_opts = True
                 if   arg in ('-c', '--config'):         red_opts.append('-c')
@@ -185,6 +211,8 @@ for arg in sys.argv[1:]:
         if add_to_red_opts is None:
             red_opts.append(red_arg)
             add_to_red_opts = False
+        if isinstance(config_file, list):
+            config_file = ''.join(config_file)
 
 
 # Construct name of socket
@@ -371,7 +399,7 @@ def do_daemon():
     sock.close()
 
 
-def not_running()
+def not_running():
     '''
     Run actions for --status when the daemon is not running
     '''
@@ -519,6 +547,7 @@ def do_client():
     '''
     Do everything that has to do with being a client
     '''
+    global sock
     # Connect to client
     sock = create_client()
     
@@ -545,6 +574,70 @@ def user_interface():
     Start user interface
     '''
     pass # TODO
+
+
+## Load extension and configurations via blueshiftrc
+# No configuration script has been selected explicitly,
+# so select one automatically.
+if config_file is None:
+    # Possible auto-selected configuration scripts,
+    # earlier ones have precedence, we can only select one.
+    files = []
+    def add_files(var, *ps, multi = False):
+        if var == '~':
+            try:
+                # Get the home (also known as initial) directory of the real user
+                import pwd
+                var = pwd.getpwuid(os.getuid()).pw_dir
+            except:
+                return
+        else:
+            if (var is None) or (var in os.environ) and (not os.environ[var] == ''):
+                var = '' if var is None else os.environ[var]
+            else:
+                return
+        paths = [var]
+        if multi and os.pathsep in var:
+            paths = [v for v in var.split(os.pathsep) if not v == '']
+        for p in ps:
+            p = p.replace('/', os.sep).replace('%', PROGRAM_NAME)
+            for v in paths:
+                files.append(v + p)
+    add_files('XDG_CONFIG_HOME', '/%/%rc')
+    add_files('HOME', '/.config/%/%rc', '/.%rc')
+    add_files('~', '/.config/%/%rc', '/.%rc')
+    add_files('XDG_CONFIG_DIRS', '/.config/%/%rc', '/.%rc', multi = True)
+    add_files(None, '/etc/%rc')
+    for file in files:
+        # If the file we exists,
+        if os.path.exists(file):
+            # select it,
+            config_file = file
+            # and stop trying files with lower precedence.
+            break
+# As the zeroth argument for the configuration script,
+# add the configurion script file. Just like the zeroth
+# command line argument is the invoked command.
+conf_opts = [config_file] + conf_opts
+if config_file is not None:
+    code = None
+    # Read configuration script file
+    with open(config_file, 'rb') as script:
+        code = script.read()
+    # Decode configurion script file and add a line break
+    # at the end to ensure that the last line is empty.
+    # If it is not, we will get errors.
+    code = code.decode('utf-8', 'error') + '\n'
+    # Compile the configuration script,
+    code = compile(code, config_file, 'exec')
+    # and run it, with it have the same
+    # globals as this module, so that it can
+    # not only use want we have defined, but
+    # also redefine it for us.
+    g, l = globals(), dict(locals())
+    for key in l:
+        g[key] = l[key]
+    exec(code, g)
 
 
 run()
