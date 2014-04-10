@@ -1,1 +1,7 @@
 nightshift is a terminal user interface for redshift
+
+The goal of this project is to provide high capabilities
+to redshift when it becomes a D-Bus services, and do
+so with a nice terminal user interface and a command line
+interface with a daemon running in the background.
+
