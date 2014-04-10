@@ -122,7 +122,9 @@ for arg in sys.argv[1:]:
         sys.exit(1)
 
 
-socket_path = '%s.%s-%s' % ('/dev/shm/', PROGRAM_NAME, os.environ['USER'])
+# Construct name of socket
+socket_path = '%s.%s~%s' % ('/dev/shm/', PROGRAM_NAME, os.environ['USER'])
+# Create socket
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
     # Connect to the server
