@@ -208,11 +208,90 @@ The pathname of the interprocess communication socket for nightshift
 '''
 
 
-def run_as_daemon(sock):
-    ## TODO (for testing)
-    import signal
+# The status of redshift
+red_brightness, red_temperature = 1, 6500
+red_brightnesses, red_temperatures = (1, 1), (5500, 3600)
+red_period, red_location = 1, (0, 0)
+red_status, red_running = True, True
+red_condition = None
+
+
+def read_status(proc):
+    '''
+    Read status from redshift
+    
+    @param  proc:Popen  The redshift process
+    '''
+    global red_brightness, red_temperature
+    global red_brightnesses, red_temperatures
+    global red_period, red_location
+    global red_status, red_running
     while True:
-        signal.pause()
+        got = proc.stdout.readline()
+        if (got is None) or (len(got) == 0):
+            break
+        got = got.decode('utf-8', 'replace')[:-1]
+        (key, value) = got.split(': ')
+        red_condition.aquire()
+        try:
+            if key == 'Location':
+                red_location = [float(v) for v in value.split(', ')]
+                # Followed by 'Temperatures'
+            elif key == 'Temperatures':
+                red_temperatures = [float(v.split(' ')[0][:-1]) for v in value.split(', ')]
+                # Followed by two parameter 'Brightness'
+            elif key == 'Period':
+                if value == 'Night':
+                    red_period = 0
+                elif value == 'Daytime':
+                    red_period = 1
+                else:
+                    red_period = float(value.split(' ')[1][1 : -1]) / 100
+                # Followed by 'Color temperature'
+            elif key == 'Color temperature':
+                red_temperature = float(value[:-1])
+                # Followed by one parameter 'Brightness'
+            elif key == 'Brightness':
+                if ':' in value:
+                    red_brightnesses = [float(v) for v in value.split(':')]
+                else:
+                    red_brightness = float(value)
+                # Neither version is followed by anything, notify
+                red_condition.notify_all()
+            else key == 'Status':
+                red_status = value == 'Enabled'
+                # Not followed by anything, notify
+                red_condition.notify_all()
+        except:
+            pass
+        red_condition.release()
+    red_condition.aquire()
+    red_running = False
+    red_condition.notify_all()
+    red_condition.release()
+
+
+def run_as_daemon(sock):
+    '''
+    Perform daemon logic
+    
+    @param  sock:socket  The server socket
+    '''
+    global red_condition
+    
+    # Create status condition
+    red_condition = thread.Condition()
+    
+    # Start redshift
+    command = ['redshift'] + red_opts
+    if red_args is not None:
+        command += red_args
+    proc = Popen(command, stdout = PIPE, stderr = open(os.devnull))
+    
+    # Read status from redshift
+    thread = threading.Thread(target = read_status)
+    thread.setDaemon(True)
+    thread.start()
 
 
 if daemon:
@@ -293,59 +372,9 @@ if sock is None:
         
         # Connect to the server
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        print('connecting')
         sock.connect(socket_path)
-        print('connected')
 
 
-try:
-    command = ['redshift'] + red_opts
-    if red_args is not None:
-        command += red_args
-    proc = Popen(command, stdout = PIPE, stderr = open(os.devnull))
-    red_brightness, red_period, red_temperature, red_running, red_status = 1, 1, 6500, True, True
-    red_condition = threading.Condition()
-    
-    def read_status():
-        global red_brightness, red_period, red_temperature, red_running
-        while True:
-            got = proc.stdout.readline()
-            if (got is None) or (len(got) == 0):
-                break
-            got = got.decode('utf-8', 'replace')[:-1]
-            (key, value) = got.split(': ')
-            red_condition.acquire()
-            try:
-                if key == 'Brightness':
-                    red_brightness = float(value)
-                elif key == 'Period':
-                    if value == 'Night':
-                        red_period = 0
-                    elif value == 'Daytime':
-                        red_period = 1
-                    else:
-                        red_period = float(value.split(' ')[1][1 : -1]) / 100
-                elif key == 'Color temperature':
-                    red_temperature = float(value[:-1])
-                else key == 'Status':
-                    red_status = value == 'Enabled'
-            except:
-                pass
-            red_condition.notify()
-            red_condition.release()
-        red_running = False
-    
-    thread = threading.Thread(target = read_status)
-    thread.setDaemon(True)
-    thread.start()
-    
-    while red_running:
-        red_condition.acquire()
-        red_condition.wait()
-        print('%f: %f, %f' % (red_period, red_temperature, red_brightness))
-        red_condition.release()
-
-finally:
-    # Close socket
-    sock.close()
+# Close socket
+sock.close()
 
