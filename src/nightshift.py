@@ -296,7 +296,6 @@ def use_client(sock, proc):
                 message += 'Running: %s\n' % ('yes' if red_running else 'no')
                 sock.sendall(message.encode('utf-8'))
                 red_condition.release()
-                pass
             elif message == 'toggle':
                 proc.send_signal(signal.SIGUSR1)
             elif message == 'kill':
@@ -348,7 +347,10 @@ def run_as_daemon(sock):
     thread.join()
 
 
-if daemon:
+def do_daemon():
+    '''
+    Run actions for --daemon
+    '''
     if (kill > 0) or toggle or status:
         print('%s: error: -x, +x and -s can be used when running as the daemon' % sys.argv[0])
         sys.exit(1)
@@ -367,26 +369,48 @@ if daemon:
     
     # Close socket
     sock.close()
-    # Close process
-    sys.exit(0)
 
 
-# Create socket
-sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-try:
-    # Connect to the server
-    sock.connect(socket_path)
-except:
-    # The process need separate sockets, lets close it
-    # and let both process recreate it
-    sock.close()
-    sock = None
-    
-    if status:
-        print('Not running')
-        sys.exit(0)
+def not_running()
+    '''
+    Run actions for --status when the daemon is not running
+    '''
+    print('Not running')
 
-if sock is None:
+
+def do_status():
+    '''
+    Run actions for --status when the daemon is running
+    '''
+    sock.sendall('status\n'.encode('utf-8'))
+    while True:
+        got = sock.recv(1024)
+        if (got is None) or (len(got) == 0):
+            break
+        sys.stdout.buffer.write(got)
+        sys.stdout.buffer.flush()
+
+
+def do_toggle():
+    '''
+    Run actions for --toggle
+    '''
+    sock.sendall('toggle\n'.encode('utf-8'))
+
+
+def do_kill():
+    '''
+    Run actions for --kill
+    '''
+    sock.sendall('kill\n'.encode('utf-8'))
+    if kill > 1:
+        sock.sendall('kill\n'.encode('utf-8'))
+
+
+def create_daemon():
+    '''
+    Start daemon when it is required but is not running
+    '''
     ## Server is not running
     # Create pipe for interprocess signal
     (r_end, w_end) = os.pipe()
@@ -433,45 +457,95 @@ if sock is None:
         
         # Close the pipe
         os.close(w_end)
+
+
+def create_client():
+    '''
+    Create client socket and start daemon if not running
+    
+    @return  :socket  The client socket
+    '''
+    # Create socket
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        # Connect to the server
+        sock.connect(socket_path)
+    except:
+        # The process need separate sockets, lets close it
+        # and let both process recreate it
+        sock.close()
+        sock = None
+        
+        if status:
+            not_running()
+            sys.exit(0)
+    
+    if sock is None:
+        # Create daemon and wait for it to start listening for clients
+        create_daemon()
         
         # Connect to the server
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(socket_path)
+    
+    return sock
 
 
-# Get redshift status
-if status:
-    sock.sendall('status\n'.encode('utf-8'))
+def run_as_client():
+    '''
+    Perform client actions
+    '''
+    # Temporarily disable or enable redshift
+    if toggle:
+        do_toggle()
+        sock.sendall('close\n'.encode('utf-8'))
+    
+    # Kill redshift and the night daemon
+    if kill > 0:
+        do_kill()
+    
+    # Get redshift status
+    if status:
+        do_status()
+        sock.close()
+    
+    # Start user interface
+    if (kill == 0) and not (status or toggle):
+        sock.sendall('listen\n'.encode('utf-8'))
+        user_interface()
+
+
+def do_client():
+    '''
+    Do everything that has to do with being a client
+    '''
+    # Connect to client
+    sock = create_client()
+    
+    # Perform client actions
+    run_as_client()
+    
+    # Close socket
     sock.sendall('close\n'.encode('utf-8'))
-    while True:
-        got = sock.recv(1024)
-        if (got is None) or (len(got) == 0):
-            break
-        sys.stdout.buffer.write(got)
-        sys.stdout.buffer.flush()
-
-# Temporarily disable or enable redshift
-if toggle:
-    sock.sendall('toggle\n'.encode('utf-8'))
-
-# Kill redshift and the night daemon
-if kill >= 1:
-    sock.sendall('kill\n'.encode('utf-8'))
-
-# Kill redshift and the night daemon immediately
-if kill >= 2:
-    sock.sendall('kill\n'.encode('utf-8'))
-
-if toggle or (kill > 0):
-    sock.sendall('close\n'.encode('utf-8'))
+    sock.close()
 
 
-# Start user interface
-if (kill == 0) and not (status or toggle):
-    sock.sendall('listen\n'.encode('utf-8'))
+def run():
+    '''
+    Run as either the daemon (if --daemon) or as a client (otherwise)
+    '''
+    if daemon:
+        do_daemon()
+    else:
+        do_client()
+
+
+def user_interface():
+    '''
+    Start user interface
+    '''
     pass # TODO
 
 
-# Close socket
-sock.close()
+run()
 
