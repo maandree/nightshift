@@ -243,7 +243,7 @@ def read_status(proc):
                     red_brightness = float(value)
                 # Neither version is followed by anything, notify
                 red_condition.notify_all()
-            else key == 'Status':
+            elif key == 'Status':
                 red_status = value == 'Enabled'
                 # Not followed by anything, notify
                 red_condition.notify_all()
