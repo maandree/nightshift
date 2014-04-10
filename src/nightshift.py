@@ -211,13 +211,15 @@ def read_status(proc):
     global red_brightnesses, red_temperatures
     global red_period, red_location
     global red_status, red_running
+    released = True
     while True:
         got = proc.stdout.readline()
         if (got is None) or (len(got) == 0):
             break
         got = got.decode('utf-8', 'replace')[:-1]
         (key, value) = got.split(': ')
-        red_condition.aquire()
+        if released:
+            red_condition.aquire()
         try:
             if key == 'Location':
                 red_location = [float(v) for v in value.split(', ')]
@@ -241,16 +243,19 @@ def read_status(proc):
                     red_brightnesses = [float(v) for v in value.split(':')]
                 else:
                     red_brightness = float(value)
-                # Neither version is followed by anything, notify
-                red_condition.notify_all()
+                # Neither version is followed by anything, notify and release
+                released = True
             elif key == 'Status':
                 red_status = value == 'Enabled'
-                # Not followed by anything, notify
+                # Not followed by anything, notify and release
+                released = True
+            if released:
                 red_condition.notify_all()
+                red_condition.release()
         except:
             pass
-        red_condition.release()
-    red_condition.aquire()
+    if released:
+        red_condition.aquire()
     red_running = False
     red_condition.notify_all()
     red_condition.release()
