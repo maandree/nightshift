@@ -67,6 +67,11 @@ def setproctitle(title):
 setproctitle(sys.argv[0])
 
 
+backlog = 5
+'''
+:int  The size of the server socket's backlog
+'''
+
 red_args = None
 '''
 :list<str>?  Raw arguments passed to redshift
@@ -390,7 +395,7 @@ def do_daemon():
         pass # The fill does (probably) not exist
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(socket_path)
-    sock.listen(5)
+    sock.listen(backlog)
     
     # Perform daemon logic
     run_as_daemon(sock)
@@ -459,7 +464,7 @@ def create_daemon():
             pass # The fill does (probably) not exist
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.bind(socket_path)
-        sock.listen(5)
+        sock.listen(backlog)
         
         # Send signal
         with os.fdopen(w_end, 'wb') as file:
