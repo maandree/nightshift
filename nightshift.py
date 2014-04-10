@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
+import socket
 import threading
 from subprocess import Popen, PIPE
 
@@ -121,45 +122,113 @@ for arg in sys.argv[1:]:
         sys.exit(1)
 
 
-proc = Popen(['redshift', '-v'], stdout = PIPE, stderr = open(os.devnull))
-red_brightness, red_period, red_temperature, red_running = 1, 1, 6500, True
-red_condition = threading.Condition()
+socket_path = '%s.%s-%s' % ('/dev/shm/', PROGRAM_NAME, os.environ['USER'])
+sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+try:
+    # Connect to the server
+    sock.connect(socket_path)
+except:
+    # The process need separate sockets, lets close it
+    # and let both process recreate it
+    sock.close()
+    sock = None
 
-def read_status():
-    global red_brightness, red_period, red_temperature, red_running
-    while True:
-        got = proc.stdout.readline()
-        if (got is None) or (len(got) == 0):
-            break
-        got = got.decode('utf-8', 'replace')[:-1]
-        (key, value) = got.split(': ')
+if sock is None:
+    ## Server is not running
+    # Create pipe for interprocess signal
+    (r_end, w_end) = os.pipe()
+    
+    # Duplicate process.
+    pid = os.fork()
+    
+    if pid == 0:
+        ## Daemon (child)
+        # Close stdin
+        os.close(sys.stdin.fileno())
+        
+        # Create server socket
+        os.unlink(socket_path)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.bind(socket_path)
+        sock.listen(5)
+        
+        # Send signal
+        with os.fdopen(w_end, 'wb') as file:
+            file.write(b'\n')
+            file.flush()
+        
+        # Close the pipe
+        os.close(r_end)
+        
+        ## TODO (for testing)
+        import signal
+        while True:
+            signal.pause()
+        
+        # Close socket
+        sock.close()
+        # Close process
+        sys.exit(0)
+    else:
+        ## Front-end (parent)
+        # Wait for a signal
+        rc = None
+        with os.fdopen(r_end, 'rb') as file:
+            file.read(1)
+        
+        # Close the pipe
+        os.close(w_end)
+        
+        # Connect to the server
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        print('connecting')
+        sock.connect(socket_path)
+        print('connected')
+
+
+try:
+    proc = Popen(['redshift', '-v'], stdout = PIPE, stderr = open(os.devnull))
+    red_brightness, red_period, red_temperature, red_running = 1, 1, 6500, True
+    red_condition = threading.Condition()
+    
+    def read_status():
+        global red_brightness, red_period, red_temperature, red_running
+        while True:
+            got = proc.stdout.readline()
+            if (got is None) or (len(got) == 0):
+                break
+            got = got.decode('utf-8', 'replace')[:-1]
+            (key, value) = got.split(': ')
+            red_condition.acquire()
+            try:
+                if key == 'Brightness':
+                    red_brightness = float(value)
+                elif key == 'Period':
+                    if value == 'Night':
+                        red_period = 0
+                    elif value == 'Daytime':
+                        red_period = 1
+                    else:
+                        red_period = float(value.split(' ')[1][1 : -1]) / 100
+                elif key == 'Color temperature':
+                    red_temperature = float(value[:-1])
+            except:
+                pass
+            red_condition.notify()
+            red_condition.release()
+        red_running = False
+    
+    thread = threading.Thread(target = read_status)
+    thread.setDaemon(True)
+    thread.start()
+
+    while red_running:
         red_condition.acquire()
-        try:
-            if key == 'Brightness':
-                red_brightness = float(value)
-            elif key == 'Period':
-                if value == 'Night':
-                    red_period = 0
-                elif value == 'Daytime':
-                    red_period = 1
-                else:
-                    red_period = float(value.split(' ')[1][1 : -1]) / 100
-            elif key == 'Color temperature':
-                red_temperature = float(value[:-1])
-        except:
-            pass
-        red_condition.notify()
+        red_condition.wait()
+        print('%f: %f, %f' % (red_period, red_temperature, red_brightness))
         red_condition.release()
-    red_running = False
 
-thread = threading.Thread(target = read_status)
-thread.setDaemon(True)
-thread.start()
-
-
-while red_running:
-    red_condition.acquire()
-    red_condition.wait()
-    print('%f: %f, %f' % (red_period, red_temperature, red_brightness))
-    red_condition.release()
+finally:
+    # Close socket
+    sock.close()
 
