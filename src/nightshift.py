@@ -71,7 +71,7 @@ red_args = None
 :list<str>?  Raw arguments passed to redshift
 '''
 
-red_opts = []
+red_opts = ['-v']
 '''
 :list<str>  Nightshift parsed options passed to redshift
 '''
@@ -203,6 +203,35 @@ for arg in sys.argv[1:]:
 
 # Construct name of socket
 socket_path = '%s.%s~%s' % ('/dev/shm/', PROGRAM_NAME, os.environ['USER'])
+
+
+def run_as_daemon(sock):
+    ## TODO (for testing)
+    import signal
+    while True:
+        signal.pause()
+
+
+if daemon:
+    if kill or toggle or status:
+        print('%s: error: -x, +x and -s can be used when running as the daemon' % sys.argv[0])
+        sys.exit(1)
+    
+    # Create server socket
+    os.unlink(socket_path)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(socket_path)
+    sock.listen(5)
+    
+    # Perform daemon logic
+    run_as_daemon(sock)
+    
+    # Close socket
+    sock.close()
+    # Close process
+    sys.exit(0)
+
+
 # Create socket
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 try:
@@ -242,10 +271,8 @@ if sock is None:
         # Close the pipe
         os.close(r_end)
         
-        ## TODO (for testing)
-        import signal
-        while True:
-            signal.pause()
+        # Perform daemon logic
+        run_as_daemon(sock)
         
         # Close socket
         sock.close()
@@ -269,7 +296,10 @@ if sock is None:
 
 
 try:
-    proc = Popen(['redshift', '-v'], stdout = PIPE, stderr = open(os.devnull))
+    command = ['redshift'] + red_opts
+    if red_args is not None:
+        command += red_args
+    proc = Popen(command, stdout = PIPE, stderr = open(os.devnull))
     red_brightness, red_period, red_temperature, red_running, red_status = 1, 1, 6500, True, True
     red_condition = threading.Condition()
     
