@@ -81,9 +81,10 @@ daemon = False
 :bool  Whether or not to run as daemon
 '''
 
-kill = False
+kill = 0
 '''
-:bool  Whether or not to kill the redshift and the nightshift daemon
+:int  Whether or not to kill the redshift and the nightshift daemon,
+      0 for no, 1 for yes, 2 for immediately
 '''
 
 toggle = False
@@ -157,45 +158,29 @@ for arg in sys.argv[1:]:
         red_args = []
     else:
         subargs = [arg]
-        if arg.startswith('-') and not arg.startswith('--'):
-            subargs = ['-' + letter for letter in arg[1:]]
-        elif arg.startswith('+') and not arg.startswith('++'):
-            subargs = ['+' + letter for letter in arg[1:]]
+        if   arg.startswith('-') and not arg.startswith('--'):  subargs = ['-' + letter for letter in arg[1:]]
+        elif arg.startswith('+') and not arg.startswith('++'):  subargs = ['+' + letter for letter in arg[1:]]
         red_arg = ''
         for arg in subargs:
             if (add_to_red_opts is None) or add_to_red_opts:
                 add_to_red_opts = None
                 red_arg += arg[1]
-            elif arg in ('-d', '--daemon'):
-                daemon = True
-            elif arg in ('-x', '--reset', '--kill'):
-                kill = True
-            elif arg in ('+x', '--toggle'):
-                toggle = True
-            elif arg in ('-s', '--status'):
-                status = True
-            elif arg in ('-c', '--config'):
-                red_opts.append('-c')
-                add_to_red_opts = True
-            elif arg in ('-b', '--brightness'):
-                red_opts.append('-b')
-                add_to_red_opts = True
-            elif arg in ('-t', '--temperature'):
-                red_opts.append('-t')
-                add_to_red_opts = True
-            elif arg in ('-l', '--location'):
-                red_opts.append('-l')
-                add_to_red_opts = True
-            elif arg in ('-m', '--method'):
-                red_opts.append('-m')
-                add_to_red_opts = True
-            elif arg in ('-r', '--no-transition'):
-                red_opts.append('-r')
-                add_to_red_opts = True
+            elif arg in ('-d', '--daemon'):             daemon = True
+            elif arg in ('-x', '--reset', '--kill'):    kill += 1
+            elif arg in ('+x', '--toggle'):             toggle = True
+            elif arg in ('-s', '--status'):             status = True
             else:
-                ## Unrecognised option
-                sys.stderr.write('%s: error: unrecognised option: %s\n' % (sys.argv[0], arg))
-                sys.exit(1)
+                add_to_red_opts = True
+                if   arg in ('-c', '--config'):         red_opts.append('-c')
+                elif arg in ('-b', '--brightness'):     red_opts.append('-b')
+                elif arg in ('-t', '--temperature'):    red_opts.append('-t')
+                elif arg in ('-l', '--location'):       red_opts.append('-l')
+                elif arg in ('-m', '--method'):         red_opts.append('-m')
+                elif arg in ('-r', '--no-transition'):  red_opts.append('-r')
+                else:
+                    ## Unrecognised option
+                    sys.stderr.write('%s: error: unrecognised option: %s\n' % (sys.argv[0], arg))
+                    sys.exit(1)
         if add_to_red_opts is None:
             red_opts.append(red_arg)
             add_to_red_opts = False
@@ -292,10 +277,12 @@ def run_as_daemon(sock):
     thread = threading.Thread(target = read_status)
     thread.setDaemon(True)
     thread.start()
+    
+    # TODO
 
 
 if daemon:
-    if kill or toggle or status:
+    if (kill > 0) or toggle or status:
         print('%s: error: -x, +x and -s can be used when running as the daemon' % sys.argv[0])
         sys.exit(1)
     
@@ -324,13 +311,17 @@ except:
     # and let both process recreate it
     sock.close()
     sock = None
+    
+    if status:
+        print('Not running')
+        sys.exit(0)
 
 if sock is None:
     ## Server is not running
     # Create pipe for interprocess signal
     (r_end, w_end) = os.pipe()
     
-    # Duplicate process.
+    # Duplicate process
     pid = os.fork()
     
     if pid == 0:
@@ -373,6 +364,35 @@ if sock is None:
         # Connect to the server
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(socket_path)
+
+
+# Get redshift status
+if status:
+    sock.sendall('status\n')
+    while True:
+        got = sock.recv(1024)
+        if (got is None) or (len(got) == 0):
+            break
+        sys.stdout.buffer.write(got)
+    sys.stdout.buffer.flush()
+
+# Temporarily disable or enable redshift
+if toggle:
+    sock.sendall('toggle\n')
+
+# Kill redshift and the night daemon
+if kill >= 1:
+    sock.sendall('kill\n')
+
+# Kill redshift and the night daemon immediately
+if kill >= 2:
+    sock.sendall('kill\n')
+
+
+# Start user interface
+if (kill == 0) and not (status or toggle):
+    sock.sendall('listen\n')
+    pass # TODO
 
 
 # Close socket
