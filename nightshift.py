@@ -24,42 +24,102 @@ from subprocess import Popen, PIPE
 
 
 PROGRAM_NAME = 'nightshift'
+'''
+:str  The name of the program
+'''
+
 PROGRAM_VERSION = '1.0'
+'''
+:str  The version of the program
+'''
 
 
+## Set process title
+def setproctitle(title):
+    '''
+    Set process title
+    
+    @param  title:str  The title of the process
+    '''
+    import ctypes
+    try:
+        # Remove path, keep only the file,
+        # otherwise we get really bad effects, namely
+        # the name title is truncates by the number
+        # of slashes in the title. At least that is
+        # the observed behaviour when using procps-ng.
+        title = title.split('/')[-1]
+        # Create strng buffer with title
+        title = title.encode(sys.getdefaultencoding(), 'replace')
+        title = ctypes.create_string_buffer(title)
+        if 'linux' in sys.platform:
+            # Set process title on Linux
+            libc = ctypes.cdll.LoadLibrary('libc.so.6')
+            libc.prctl(15, ctypes.byref(title), 0, 0, 0)
+        elif 'bsd' in sys.platform:
+            # Set process title on at least FreeBSD
+            libc = ctypes.cdll.LoadLibrary('libc.so.7')
+            libc.setproctitle(ctypes.create_string_buffer(b'-%s'), title)
+    except:
+        pass
+setproctitle(sys.argv[0])
+
+
+## Parse options
 for arg in sys.argv[1:]:
-    if arg in ('-v', '--version'):
+    if arg in ('-V', '--version'):
+        ## Print the version of nightshift and of redshift
         print('%s %s' % (PROGRAM_NAME, PROGRAM_VERSION))
         Popen(['redshift', '-V'], stdout = sys.stdout).wait()
         sys.exit(0)
-    elif arg in ('-c', '--copyright'):
+    elif arg in ('-C', '--copyright'):
+        ## Print copyright information
         print(copyright[1 : -1])
         sys.exit(0)
-    elif arg in ('-w', '--warranty'):
+    elif arg in ('-W', '--warranty'):
+        ## Print warranty disclaimer
         print(copyright.split('\n\n')[-2])
         sys.exit(0)
     elif arg in ('-h', '--help'):
-        text = '''USAGE: nightshift
+        ## Display help message
+        text = '''USAGE: nightshift [OPTIONS...] [-- REDSHIFT-OPTIONS...]
                   
-                  terminal user interface for redshift, a program for
-                  setting the colour temperature of the display according
-                  to the time of day.
+                  Terminal user interface for redshift, a program for setting the colour
+                  temperature of the display according to the time of day.
                   
-                    -h --help        Display this help message
-                    -v --version     Show program version
-                    -c --copyright   Show program copyright information
-                    -w --warranty    Show program warrantly disclaimer
+                    -h --help                       Display this help message
+                    -V --version                    Show program version
+                    -C --copyright                  Show program copyright information
+                    -W --warranty                   Show program warrantly disclaimer
+                    
+                    -d --daemon                     Start as daemon
+                    -x --reset                      Reset mode (remove adjustment from screen)
+                    +x --toggle                     Temporarily disable or enable adjustments
+                    -s --status                     Print status information
+                    
+                    -c --config         FILE        Load settings from specified configuration file
+                    -b --brightness     DAY:NIGHT   Screen brightness to set at daytime/night
+                    -b --brightness     BRIGHTNESS  Screen brightness to apply
+                    -t --temperature    DAY:NIGHT   Colour temperature to set at daytime/night
+                    -t --temperature    TEMP        Colour temperature to apply
+                    -l --location       LAT:LON     Your current location
+                    -l --location       PROVIDER    Select provider for automatic location updates
+                                                    (Type `list' to see available providers)
+                    -m --method         METHOD      Method to use to set colour temperature
+                                                    (Type `list' to see available methods)
+                    -r --no-transition              Disable temperature transitions
                   
-                  Please report bugs to
-                  <https://github.com/maandree/nightshift/issues>
+                  Please report bugs to <https://github.com/maandree/nightshift/issues>
                '''
         text = text.split('\n')[:-1]
         indent = min([len(line) - len(line.lstrip()) for line in text if line.rstrip().startswith(' ')])
         print('\n'.join([line[indent:] if line.startswith(' ') else line for line in text]))
         sys.exit(0)
     else:
+        ## Unrecognised option
         sys.stderr.write('%s: error: unrecognised option: %s\n' % (sys.argv[0], arg))
         sys.exit(1)
+
 
 proc = Popen(['redshift', '-v'], stdout = PIPE, stderr = open(os.devnull))
 red_brightness, red_period, red_temperature, red_running = 1, 1, 6500, True
