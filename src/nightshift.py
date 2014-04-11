@@ -223,7 +223,8 @@ for arg in sys.argv[1:]:
 
 # Parse help request for -l and -m
 for opt in ('-l', '-m'):
-    if opt in red_opts:
+    i = 0
+    while opt in red_opts[i:]:
         i = red_opts.index(opt) + 1
         if not i == len(red_opts):
             arg = red_opts[i]
