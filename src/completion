@@ -32,6 +32,6 @@
   (argumented   (options -t --temperature)   (complete --version)       (arg DAY:NIGHT)        (files -0) (desc 'Colour temperature to set at daytime/night'))
   (argumented   (options -l --location)      (complete --location)      (arg LAT:LON|PROVIDER) (files -0) (desc 'Your current location or location provider'))
   (argumented   (options -m --method)        (complete --method)        (arg METHOD)           (files -0) (desc 'Method to use to set colour temperature'))
-  (unargumented (options -r --no-transition) (complete --no-transition)                        (files -0) (desc 'Disable temperature transitions'))
+  (unargumented (options -r --no-transition) (complete --no-transition)                                   (desc 'Disable temperature transitions'))
 )
 
