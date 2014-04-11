@@ -275,6 +275,8 @@ def read_status(proc, sock):
         if (got is None) or (len(got) == 0):
             break
         got = got.decode('utf-8', 'replace')[:-1]
+        if ': 'not in got:
+            continue
         (key, value) = got.split(': ')
         if released:
             red_condition.acquire()
@@ -330,8 +332,11 @@ def use_client(sock, proc):
     buf = ''
     closed = False
     while not closed:
-        got = sock.recv(128).decode('utf-8', 'error')
-        if (got is None) or (len(got) == 0):
+        try:
+            got = sock.recv(128).decode('utf-8', 'error')
+            if (got is None) or (len(got) == 0):
+                break
+        except:
             break
         buf += got
         while '\n' in buf:
@@ -350,7 +355,7 @@ def use_client(sock, proc):
                 message += 'Longitude: %f\n' % red_location[1]
                 message += 'Enabled: %s\n' % ('yes' if red_status else 'no')
                 message += 'Running: %s\n' % ('yes' if red_running else 'no')
-                sock.sendall(message.encode('utf-8'))
+                sock.sendall((message + '\n').encode('utf-8'))
                 red_condition.release()
             elif message == 'toggle':
                 proc.send_signal(signal.SIGUSR1)
@@ -437,12 +442,17 @@ def do_status():
     Run actions for --status when the daemon is running
     '''
     sock.sendall('status\n'.encode('utf-8'))
+    buf = ''
     while True:
         got = sock.recv(1024)
         if (got is None) or (len(got) == 0):
             break
-        sys.stdout.buffer.write(got)
-        sys.stdout.buffer.flush()
+        buf += got.decode('utf-8', 'replace')
+        if '\n\n' in buf:
+            break
+    buf = buf.split('\n\n')[0] + '\n'
+    sys.stdout.buffer.write(buf.encode('utf-8'))
+    sys.stdout.buffer.flush()
 
 
 def do_toggle():
@@ -552,7 +562,6 @@ def run_as_client():
     # Temporarily disable or enable redshift
     if toggle:
         do_toggle()
-        sock.sendall('close\n'.encode('utf-8'))
     
     # Kill redshift and the night daemon
     if kill > 0:
@@ -581,7 +590,10 @@ def do_client():
     run_as_client()
     
     # Close socket
-    sock.sendall('close\n'.encode('utf-8'))
+    try:
+        sock.sendall('close\n'.encode('utf-8'))
+    except:
+        pass
     sock.close()
 
 
