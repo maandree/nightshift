@@ -221,6 +221,19 @@ for arg in sys.argv[1:]:
             config_file = ''.join(config_file)
 
 
+# Parse help request for -l and -m
+for opt in ('-l', '-m'):
+    if opt in red_opts:
+        i = red_opts.index(opt) + 1
+        if not i == len(red_opts):
+            arg = red_opts[i]
+            if (arg == 'list') or ('help' in arg.split(':')):
+                proc = ['redshift', opt, arg]
+                proc = Popen(proc, stdout = sys.stdout, stderr = sys.stderr)
+                proc.wait()
+                sys.exit(proc.returncode)
+
+
 # Construct name of socket
 socket_path = '%s.%s~%s' % ('/dev/shm/', PROGRAM_NAME, os.environ['USER'])
 '''
