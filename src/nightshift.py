@@ -233,6 +233,14 @@ for opt in ('-l', '-m'):
                 proc = Popen(proc, stdout = sys.stdout, stderr = sys.stderr)
                 proc.wait()
                 sys.exit(proc.returncode)
+# Translate single-parameter -t into dual-parameter -t
+i = 0
+while '-t' in red_opts[i:]:
+    i = red_opts.index('-t') + 1
+    if not i == len(red_opts):
+        if ':' not in red_opts[i]:
+            red_opts[i] = '%s:%s' % (red_opts[i], red_opts[i])
+
 
 
 # Construct name of socket
