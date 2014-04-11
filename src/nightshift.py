@@ -374,7 +374,20 @@ def use_client(sock, proc):
             elif message == 'close':
                 closed = True
             elif message == 'listen':
-                pass ## TODO
+                def listen():
+                    while True:
+                        red_condition.acquire()
+                        try:
+                            red_condition.wait()
+                            message = generate_status_message()
+                            sock.sendall((message + '\n').encode('utf-8'))
+                        except:
+                            break
+                        finally:
+                            red_condition.release()
+                thread = threading.Thread(target = listen)
+                thread.setDaemon(True)
+                thread.start()
     sock.close()
 
 
@@ -401,18 +414,21 @@ def run_as_daemon(sock):
     thread.start()
     
     red_condition.acquire()
+    broke = False
     while red_running:
         red_condition.release()
         try:
             (client_sock, _client_address) = sock.accept()
         except:
-            pass # We have shut down the socket so that accept halts
+            broke = True
+            break # We have shut down the socket so that accept halts
         client_thread = threading.Thread(target = use_client, args = (client_sock, proc))
         client_thread.setDaemon(True)
         client_thread.start()
         red_condition.acquire()
     
-    red_condition.release()
+    if not broke:
+        red_condition.release()
     thread.join()
 
 
@@ -622,6 +638,20 @@ def user_interface():
     Start user interface
     '''
     pass # TODO
+    buf = ''
+    continue_to_run = True
+    while continue_to_run:
+        while '\n\n' not in buf:
+            got = sock.recv(1024)
+            if (got is None) or (len(got) == 0):
+                continue_to_run = False
+                break
+            buf += got.decode('utf-8', 'replace')
+            if '\n\n' in buf:
+                break
+        msg, buf = buf.split('\n\n')[0] + '\n\n', '\n\n'.join(buf.split('\n\n')[1:])
+        sys.stdout.buffer.write(msg.encode('utf-8'))
+        sys.stdout.buffer.flush()
 
 
 ## Load extension and configurations via blueshiftrc
