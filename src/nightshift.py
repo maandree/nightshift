@@ -371,6 +371,8 @@ def use_client(sock, proc):
                 proc.send_signal(signal.SIGUSR1)
             elif message == 'kill':
                 proc.terminate()
+                import time
+                time.sleep(0.05) # XXX sometimes redshift is too slow
             elif message == 'close':
                 closed = True
             elif message == 'listen':
