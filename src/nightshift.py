@@ -322,6 +322,26 @@ def read_status(proc, sock):
     sock.shutdown(socket.SHUT_RDWR)
 
 
+def generate_status_message():
+    '''
+    Generate message to send to the client to inform about the status
+    
+    @return  :str  Status message
+    '''
+    message =  'Current brightness: %f\n' % red_brightness
+    message += 'Daytime brightness: %f\n' % red_brightnesses[0]
+    message += 'Night brightness: %f\n' % red_brightnesses[1]
+    message += 'Current temperature: %f\n' % red_temperature
+    message += 'Daytime temperature: %f\n' % red_temperatures[0]
+    message += 'Night temperature: %f\n' % red_temperatures[1]
+    message += 'Dayness: %f\n' % red_period
+    message += 'Latitude: %f\n' % red_location[0]
+    message += 'Longitude: %f\n' % red_location[1]
+    message += 'Enabled: %s\n' % ('yes' if red_status else 'no')
+    message += 'Running: %s\n' % ('yes' if red_running else 'no')
+    return message
+
+
 def use_client(sock, proc):
     '''
     Communication with client
@@ -344,17 +364,7 @@ def use_client(sock, proc):
             message, buf = buf[0], '\n'.join(buf[1:])
             if message == 'status':
                 red_condition.acquire()
-                message =  'Current brightness: %f\n' % red_brightness
-                message += 'Daytime brightness: %f\n' % red_brightnesses[0]
-                message += 'Night brightness: %f\n' % red_brightnesses[1]
-                message += 'Current temperature: %f\n' % red_temperature
-                message += 'Daytime temperature: %f\n' % red_temperatures[0]
-                message += 'Night temperature: %f\n' % red_temperatures[1]
-                message += 'Dayness: %f\n' % red_period
-                message += 'Latitude: %f\n' % red_location[0]
-                message += 'Longitude: %f\n' % red_location[1]
-                message += 'Enabled: %s\n' % ('yes' if red_status else 'no')
-                message += 'Running: %s\n' % ('yes' if red_running else 'no')
+                message = generate_status_message()
                 sock.sendall((message + '\n').encode('utf-8'))
                 red_condition.release()
             elif message == 'toggle':
