@@ -635,25 +635,22 @@ def run():
         do_client()
 
 
-def user_interface():
-    '''
-    Start user interface
-    '''
-    pass # TODO
-    buf = ''
-    continue_to_run = True
-    while continue_to_run:
-        while '\n\n' not in buf:
-            got = sock.recv(1024)
-            if (got is None) or (len(got) == 0):
-                continue_to_run = False
-                break
-            buf += got.decode('utf-8', 'replace')
-            if '\n\n' in buf:
-                break
-        msg, buf = buf.split('\n\n')[0] + '\n\n', '\n\n'.join(buf.split('\n\n')[1:])
-        sys.stdout.buffer.write(msg.encode('utf-8'))
-        sys.stdout.buffer.flush()
+g, l = globals(), dict(locals())
+for key in l:
+    g[key] = l[key]
+
+
+## Import interface.py with shared globals
+# Get the Python version
+v = sys.version_info
+if (v.major > 3) or ((v.major == 3) and (v.minor >= 4)):
+    # The (new) Python 3.4 way
+    import importlib.util
+    exec(importlib.util.find_spec('interface').loader.get_code('interface'), g)
+else:
+    # The deprecated legacy way
+    import importlib
+    exec(importlib.find_loader('interface').get_code('interface'), g)
 
 
 ## Load extension and configurations via blueshiftrc
@@ -717,9 +714,6 @@ if config_file is not None:
     # globals as this module, so that it can
     # not only use want we have defined, but
     # also redefine it for us.
-    g, l = globals(), dict(locals())
-    for key in l:
-        g[key] = l[key]
     exec(code, g)
 
 
