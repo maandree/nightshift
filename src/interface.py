@@ -30,41 +30,69 @@ def user_interface():
     '''
     Start user interface
     '''
-    (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
-    sock.sendall('status\n'.encode('utf-8'))
-    def winch(signal, frame):
-        nonlocal height, width
-        (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
-    signal.signal(signal.SIGWINCH, winch)
+    global red_condition
+    red_condition = threading.Condition()
+    ui_winch()
+    daemon_thread(ui_status, args = (ui_status_callback,)).start()
+    daemon_thread(ui_refresh).start()
+    
     print('\033[?1049h\033[?25l')
     saved_stty = termios.tcgetattr(sys.stdout.fileno())
     stty = termios.tcgetattr(sys.stdout.fileno())
     stty[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
     try:
         termios.tcsetattr(sys.stdout.fileno(), termios.TCSAFLUSH, stty)
-        def callback(status):
-            if status is None:
-                return
-            print('\033[H\033[2J', end = '')
-            for key in status:
-                print(key + ': ' + status[key])
-            print(str(width) + ' x ' + str(height))
-            #brightness = [float(status['%s brightness' % k]) for k in ('Night', 'Current', 'Daytime')]
-            #temperature = [float(status['%s temperature' % k]) for k in ('Night', 'Current', 'Daytime')]
-            #dayness = float(status['Dayness'])
-            #enabled = status['Enabled'] == 'yes'
-            #running = status['Running'] == 'yes'
-            #location = [float(status['Latitude']), float(status['Longitude'])]
-        thread = threading.Thread(target = ui_status, args = (callback,))
-        thread.setDaemon(True)
-        thread.start()
-        
-        input()
-    except:
-        pass
+        sock.sendall('status\n'.encode('utf-8'))
+        ui_read()
     finally:
         termios.tcsetattr(sys.stdout.fileno(), termios.TCSAFLUSH, saved_stty)
-        print('\033[?25h\033[?1049l')
+        sys.stdout.buffer.write('\033[?25h\033[?1049l'.encode('utf-8'))
+        sys.stdout.buffer.flush()
+
+
+def ui_print():
+    temperature =  tuple([red_temperature] + list(red_temperatures))
+    brightness = [b * 100 for b in [red_brightness] + list(red_brightnesses)]
+    print('\033[H\033[2J', end = '')
+    if red_running:
+        print('Temperature: %.0f K (day: %.0f K, night: %.0f K)' % tuple(temperature))
+        print('Brightness: %.0f %% (day: %.0f %%, night: %.0f %%)' % tuple(brightness))
+        print('Dayness: %.0f %%' % (red_period * 100))
+        print('Enabled' if red_status else 'Disabled')
+    else:
+        print('Not running')
+
+
+def ui_read():
+    inbuf = sys.stdin.buffer
+    while True:
+        c = inbuf.read(1)
+        if c == b'q':
+            break
+
+
+def ui_refresh():
+    while True:
+        red_condition.acquire()
+        try:
+            red_condition.wait()
+            ui_print()
+        finally:
+            red_condition.release()
+
+
+def ui_winch():
+    global height, width
+    (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
+    def winch(signal, frame):
+        global height, width
+        (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
+        red_condition.acquire()
+        try:
+            red_condition.notify()
+        finally:
+            red_condition.release()
+    signal.signal(signal.SIGWINCH, winch)
 
 
 def ui_status(callback):
@@ -83,4 +111,36 @@ def ui_status(callback):
             msg, buf = buf.split('\n\n')[0], '\n\n'.join(buf.split('\n\n')[1:])
             callback(dict([line.split(': ') for line in msg.split('\n')]))
     callback(None)
+
+
+def ui_status_callback(status):
+    global red_brightness, red_temperature, red_brightnesses, red_temperatures
+    global red_period, red_location, red_status, red_running
+    if status is not None:
+        brightness = [float(status['%s brightness' % k]) for k in ('Current', 'Daytime', 'Night')]
+        temperature = [float(status['%s temperature' % k]) for k in ('Current', 'Daytime', 'Night')]
+        red_condition.acquire()
+        try:
+            red_brightness, red_brightnesses = brightness[0], tuple(brightness[1:])
+            red_temperature, red_temperatures = temperature[0], tuple(temperature[1:])
+            red_period = float(status['Dayness'])
+            red_location = (float(status['Latitude']), float(status['Longitude']))
+            red_status = status['Enabled'] == 'yes'
+            red_running = status['Running'] == 'yes'
+            red_condition.notify()
+        finally:
+            red_condition.release()
+    else:
+        red_condition.acquire()
+        try:
+            red_running = False
+            red_condition.notify()
+        finally:
+            red_condition.release()
+
+
+def daemon_thread(target, **kwargs):
+    thread = threading.Thread(target = target, **kwargs)
+    thread.setDaemon(True)
+    return thread
 

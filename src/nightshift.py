@@ -252,7 +252,7 @@ The pathname of the interprocess communication socket for nightshift
 
 # The status of redshift
 red_brightness, red_temperature = 1, 6500
-red_brightnesses, red_temperatures = (1, 1), (5500, 3600)
+red_brightnesses, red_temperatures = (1, 1), (5500, 3500)
 red_period, red_location = 1, (0, 0)
 red_status, red_running = True, True
 red_condition = None
