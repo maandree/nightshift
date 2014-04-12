@@ -30,18 +30,18 @@ def user_interface():
     '''
     Start user interface
     '''
+    (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
+    sock.sendall('status\n'.encode('utf-8'))
+    def winch(signal, frame):
+        nonlocal height, width
+        (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
+    signal.signal(signal.SIGWINCH, winch)
     print('\033[?1049h\033[?25l')
     saved_stty = termios.tcgetattr(sys.stdout.fileno())
     stty = termios.tcgetattr(sys.stdout.fileno())
     stty[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
     try:
         termios.tcsetattr(sys.stdout.fileno(), termios.TCSAFLUSH, stty)
-        (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
-        sock.sendall('status\n'.encode('utf-8'))
-        def winch(signal, frame):
-            nonlocal height, width
-            (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
-        signal.signal(signal.SIGWINCH, winch)
         def callback(status):
             if status is None:
                 return
