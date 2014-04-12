@@ -138,7 +138,7 @@ for arg in sys.argv[1:]:
     elif arg in ('-V', '--version', '-version'):
         ## Print the version of nightshift and of redshift
         print('%s %s' % (PROGRAM_NAME, PROGRAM_VERSION))
-        Popen(['redshift', '-V'], stdout = sys.stdout).wait()
+        Popen(['redshift', '-V'], stdout = sys.stdout, env = redshift_env).wait()
         sys.exit(0)
     elif arg in ('-C', '--copyright', '-copyright'):
         ## Print copyright information
@@ -230,7 +230,7 @@ for opt in ('-l', '-m'):
             arg = red_opts[i]
             if (arg == 'list') or ('help' in arg.split(':')):
                 proc = ['redshift', opt, arg]
-                proc = Popen(proc, stdout = sys.stdout, stderr = sys.stderr)
+                proc = Popen(proc, stdout = sys.stdout, stderr = sys.stderr, env = redshift_env)
                 proc.wait()
                 sys.exit(proc.returncode)
 # Translate single-parameter -t into dual-parameter -t
@@ -256,6 +256,12 @@ red_brightnesses, red_temperatures = (1, 1), (5500, 3600)
 red_period, red_location = 1, (0, 0)
 red_status, red_running = True, True
 red_condition = None
+
+
+## Create locale free environment for redshift
+redshift_env = os.environ.copy()
+for var in ('LANG', 'LANGUAGE', 'LC_ALL', 'LC_MESSAGES'):
+    redshift_env[var] = 'C'
 
 
 def read_status(proc, sock):
