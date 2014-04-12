@@ -3,3 +3,7 @@ RUNTIME DEPENDENCIES:
 	redshift
 	python3
 
+MAKE DEPENDENCIES:
+
+	auto-auto-complete (opt-out)
+
