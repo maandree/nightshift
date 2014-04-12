@@ -19,6 +19,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
 import sys
+import fcntl
+import struct
+import signal
+import termios
 import threading
 
 
@@ -26,15 +30,25 @@ def user_interface():
     '''
     Start user interface
     '''
-    print('\033[?1049h')
+    print('\033[?1049h\033[?25l')
+    saved_stty = termios.tcgetattr(sys.stdout.fileno())
+    stty = termios.tcgetattr(sys.stdout.fileno())
+    stty[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
     try:
+        termios.tcsetattr(sys.stdout.fileno(), termios.TCSAFLUSH, stty)
+        (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
         sock.sendall('status\n'.encode('utf-8'))
+        def winch(signal, frame):
+            nonlocal height, width
+            (height, width) = struct.unpack('hh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234'))
+        signal.signal(signal.SIGWINCH, winch)
         def callback(status):
             if status is None:
                 return
             print('\033[H\033[2J', end = '')
             for key in status:
                 print(key + ': ' + status[key])
+            print(str(width) + ' x ' + str(height))
             #brightness = [float(status['%s brightness' % k]) for k in ('Night', 'Current', 'Daytime')]
             #temperature = [float(status['%s temperature' % k]) for k in ('Night', 'Current', 'Daytime')]
             #dayness = float(status['Dayness'])
@@ -49,7 +63,8 @@ def user_interface():
     except:
         pass
     finally:
-        print('\033[?1049l')
+        termios.tcsetattr(sys.stdout.fileno(), termios.TCSAFLUSH, saved_stty)
+        print('\033[?25h\033[?1049l')
 
 
 def ui_status(callback):
