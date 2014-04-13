@@ -55,24 +55,26 @@ def user_interface():
 
 
 def ui_print():
+    _button = lambda *i : ('[\033[1m%s\033[m]' if ui_state['focus'] in i else '<%s>')
     temperature =  tuple([red_temperature] + list(red_temperatures))
     brightness = [b * 100 for b in [red_brightness] + list(red_brightnesses)]
-    print('\033[H\033[2J', end = '')
+    print('\033[H', end = '')
     if red_running:
         lat, lon = red_location
         _if = lambda pn, v : pn[0] if v >= 0 else pn[1]
-        print('Location: %.4f°%s %.4f°%s' % (abs(lat), _if('NS', lat), abs(lon), _if('EW', lon)))
-        print('Temperature: %.0f K (day: %.0f K, night: %.0f K)' % tuple(temperature))
-        print('Brightness: %.0f %% (day: %.0f %%, night: %.0f %%)' % tuple(brightness))
-        print('Dayness: %.0f %%' % (red_period * 100))
-        print('Enabled' if red_status else 'Disabled')
-        print()
-        print(('[%s]' if ui_state['focus'] == 0 else '<%s>') % ('Disable' if red_status else 'Enable'), end='  ')
-        print(('[%s]' if ui_state['focus'] == 1 else '<%s>') % 'Kill')
+        print('\033[2KLocation: %.4f°%s %.4f°%s' % (abs(lat), _if('NS', lat), abs(lon), _if('EW', lon)))
+        print('\033[2KTemperature: %.0f K (day: %.0f K, night: %.0f K)' % tuple(temperature))
+        print('\033[2KBrightness: %.0f %% (day: %.0f %%, night: %.0f %%)' % tuple(brightness))
+        print('\033[2KDayness: %.0f %%' % (red_period * 100))
+        print('\033[2KEnabled' if red_status else 'Disabled')
+        print('\033[2K\n\033[2K', end = '')
+        print(_button(0) % ('Disable' if red_status else 'Enable'), end='  ')
+        print(_button(1) % 'Kill')
     else:
-        print('Not running')
-        print()
-        print('[%s]' % 'Revive')
+        print('\033[2KNot running')
+        print('\033[2K\n\033[2K', end = '')
+        print(_button(0, 1) % 'Revive')
+    print('\033[J')
 
 
 def ui_read():
