@@ -83,9 +83,9 @@ red_opts = ['-v']
 :list<str>  Nightshift parsed options passed to redshift
 '''
 
-daemon = False
+daemon = 0
 '''
-:bool  Whether or not to run as daemon
+:int  Whether or not to run as daemon, 2 if revived
 '''
 
 kill = 0
@@ -197,7 +197,8 @@ for arg in sys.argv[1:]:
                 red_arg += arg[1]
             elif isinstance(config_file, list):
                 config_file.append(arg[1])
-            elif arg in ('-d', '--daemon'):             daemon = True
+            elif arg in ('-d', '--daemon'):             daemon = 1
+            elif arg in ('+d', '++daemon'):             daemon = 2
             elif arg in ('-x', '--reset', '--kill'):    kill += 1
             elif arg in ('+x', '--toggle'):             toggle = True
             elif arg in ('-s', '--status'):             status = True
@@ -440,13 +441,16 @@ def run_as_daemon(sock):
     thread.join()
 
 
-def do_daemon():
+def do_daemon(reexec):
     '''
-    Run actions for --daemon
+    Run actions for --daemon or ++daemon
+    
+    @param  reexec:bool  Wether to perform actions for ++daemon
     '''
-    if (kill > 0) or toggle or status:
-        print('%s: error: -x, +x and -s can be used when running as the daemon' % sys.argv[0])
-        sys.exit(1)
+    if not reexec:
+        if (kill > 0) or toggle or status:
+            print('%s: error: -x, +x and -s can be used when running as the daemon' % sys.argv[0])
+            sys.exit(1)
     
     # Create server socket
     try:
@@ -456,6 +460,11 @@ def do_daemon():
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(socket_path)
     sock.listen(backlog)
+    
+    # Signal respawner
+    if reexec:
+        print()
+        sys.stdout.close()
     
     # Perform daemon logic
     run_as_daemon(sock)
@@ -631,12 +640,55 @@ def do_client():
     sock.close()
 
 
+def respawn_daemon():
+    '''
+    Restart the nightshift daemon
+    '''
+    global sock
+    
+    # Close old socket
+    sock.close()
+    
+    ## Server is not running
+    # Create pipe for interprocess signal
+    (r_end, w_end) = os.pipe()
+    
+    # Duplicate process
+    pid = os.fork()
+    
+    if pid == 0:
+        ## Daemon (child)
+        # Close stdin and stdout
+        os.close(sys.stdin.fileno())
+        os.close(sys.stdout.fileno())
+        
+        # Replace stdout with the pipe
+        os.dup2(w_end, sys.stdout.fileno())
+        os.close(w_end)
+        
+        # Reexecute image
+        os.execl('/proc/self/exe', '/proc/self/exe', *(sys.argv + ['+d']))
+    else:
+        ## Front-end (parent)
+        # Wait for a signal
+        rc = None
+        with os.fdopen(r_end, 'rb') as file:
+            file.read(1)
+        
+        # Close the pipe
+        os.close(w_end)
+        
+        # Connect to the server
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(socket_path)
+
+
 def run():
     '''
-    Run as either the daemon (if --daemon) or as a client (otherwise)
+    Run as either the daemon (if --daemon or ++daemon) or as a client (otherwise)
     '''
-    if daemon:
-        do_daemon()
+    if daemon > 0:
+        do_daemon(daemon == 2)
     else:
         do_client()
 

@@ -2,6 +2,7 @@ RUNTIME DEPENDENCIES:
 
 	redshift
 	python3
+	linux (procfs is used to reexec python)
 
 MAKE DEPENDENCIES:
 

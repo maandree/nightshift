@@ -26,6 +26,10 @@ import termios
 import threading
 
 
+ui_state = { 'focus' : 0
+           }
+
+
 def user_interface():
     '''
     Start user interface
@@ -33,7 +37,7 @@ def user_interface():
     global red_condition
     red_condition = threading.Condition()
     ui_winch()
-    daemon_thread(ui_status, args = (ui_status_callback,)).start()
+    daemon_thread(ui_status).start()
     daemon_thread(ui_refresh).start()
     
     print('\033[?1049h\033[?25l')
@@ -59,8 +63,13 @@ def ui_print():
         print('Brightness: %.0f %% (day: %.0f %%, night: %.0f %%)' % tuple(brightness))
         print('Dayness: %.0f %%' % (red_period * 100))
         print('Enabled' if red_status else 'Disabled')
+        print()
+        print(('[%s]' if ui_state['focus'] == 0 else '<%s>') % ('Disable' if red_status else 'Enable'), end='  ')
+        print(('[%s]' if ui_state['focus'] == 1 else '<%s>') % 'Kill')
     else:
         print('Not running')
+        print()
+        print('[%s]' % 'Revive')
 
 
 def ui_read():
@@ -69,6 +78,29 @@ def ui_read():
         c = inbuf.read(1)
         if c == b'q':
             break
+        elif c == b'\t':
+            red_condition.acquire()
+            try:
+                ui_state['focus'] = 1 - ui_state['focus']
+                red_condition.notify()
+            finally:
+                red_condition.release()
+        elif c in b' \n':
+            red_condition.acquire()
+            try:
+                if red_running:
+                    if ui_state['focus'] == 0:
+                        sock.sendall('toggle\n'.encode('utf-8'))
+                    else:
+                        sock.sendall('kill\n'.encode('utf-8'))
+                    red_condition.notify()
+                else:
+                    respawn_daemon()
+                    daemon_thread(ui_status).start()
+                    sock.sendall('status\n'.encode('utf-8'))
+                    sock.sendall('listen\n'.encode('utf-8'))
+            finally:
+                red_condition.release()
 
 
 def ui_refresh():
@@ -95,7 +127,7 @@ def ui_winch():
     signal.signal(signal.SIGWINCH, winch)
 
 
-def ui_status(callback):
+def ui_status():
     buf = ''
     continue_to_run = True
     while continue_to_run:
@@ -109,8 +141,8 @@ def ui_status(callback):
                 break
         if continue_to_run:
             msg, buf = buf.split('\n\n')[0], '\n\n'.join(buf.split('\n\n')[1:])
-            callback(dict([line.split(': ') for line in msg.split('\n')]))
-    callback(None)
+            ui_status_callback(dict([line.split(': ') for line in msg.split('\n')]))
+    ui_status_callback(None)
 
 
 def ui_status_callback(status):
