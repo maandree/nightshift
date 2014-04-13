@@ -1,4 +1,7 @@
 _/
+/dist/*/*/*
+!/dist/archlinux/*/PKGBUILD
+!/dist/archlinux/*/nightshift.install
 bin/
 obj/
 __pycache__/

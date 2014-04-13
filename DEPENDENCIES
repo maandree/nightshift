@@ -7,4 +7,7 @@ RUNTIME DEPENDENCIES:
 MAKE DEPENDENCIES:
 
 	auto-auto-complete (opt-out)
+	make
+	zip
+	coreutils
 
