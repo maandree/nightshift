@@ -1,7 +1,7 @@
 # Maintainer: Mattias Andrée <`base64 -d`(bWFhbmRyZWUK)@member.fsf.org>
 
 pkgname=nightshift
-pkgver=0.1
+pkgver=0.2
 pkgrel=1
 pkgdesc="A terminal user interface for redshift"
 arch=(any)
@@ -10,7 +10,7 @@ license=('GPL3')
 depends=(python3 redshift linux)
 makedepends=(make coreutils zip auto-auto-complete)
 source=($url/archive/$pkgver.tar.gz)
-sha256sums=(3e1803bbb14aab2ff9c4882bd5c72e8de8700252d5b0a20a0080497373dee264)
+sha256sums=(9601ccf2d3c9fe241be3ba1e6f3a30814299a769789ee9ae380a81fc63c96082)
 
 
 build() {
