@@ -31,7 +31,7 @@ PROGRAM_NAME = 'nightshift'
 :str  The name of the program
 '''
 
-PROGRAM_VERSION = '1.0'
+PROGRAM_VERSION = '0.3'
 '''
 :str  The version of the program
 '''
