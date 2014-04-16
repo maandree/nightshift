@@ -68,12 +68,14 @@ def ui_print():
         print('\033[2KDayness: %.0f %%' % (red_period * 100))
         print('\033[2KEnabled' if red_status else 'Disabled')
         print('\033[2K\n\033[2K', end = '')
-        print(_button(0) % ('Disable' if red_status else 'Enable'), end='  ')
-        print(_button(1) % 'Kill')
+        print(_button(0) % ('Disable' if red_status else 'Enable'), end = '  ')
+        print(_button(1) % 'Kill', end = '  ')
+        print(_button(2) % 'Close')
     else:
         print('\033[2KNot running')
         print('\033[2K\n\033[2K', end = '')
-        print(_button(0, 1) % 'Revive')
+        print(_button(0, 1) % 'Revive', end = '  ')
+        print(_button(2) % 'Close')
     print('\033[J')
 
 
@@ -86,14 +88,21 @@ def ui_read():
         elif c == b'\t':
             red_condition.acquire()
             try:
-                ui_state['focus'] = 1 - ui_state['focus']
+                if red_running:
+                    ui_state['focus'] = (ui_state['focus'] + 1) % 3
+                elif ui_state['focus'] == 2:
+                    ui_state['focus'] = 0
+                else:
+                    ui_state['focus'] = 2
                 red_condition.notify()
             finally:
                 red_condition.release()
         elif c in b' \n':
             red_condition.acquire()
             try:
-                if red_running:
+                if ui_state['focus'] == 2:
+                    break
+                elif red_running:
                     if ui_state['focus'] == 0:
                         sock.sendall('toggle\n'.encode('utf-8'))
                     else:
