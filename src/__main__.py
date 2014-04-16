@@ -711,7 +711,7 @@ else:
     exec(importlib.find_loader('interface').get_code('interface'), g)
 
 
-## Load extension and configurations via blueshiftrc
+## Load extension and configurations via nightshiftrc
 # No configuration script has been selected explicitly,
 # so select one automatically.
 if config_file is None:
