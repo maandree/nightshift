@@ -194,9 +194,9 @@ for arg in sys.argv[1:]:
         for arg in subargs:
             if (add_to_red_opts is None) or add_to_red_opts:
                 add_to_red_opts = None
-                red_arg += arg[1]
+                red_arg += arg
             elif isinstance(config_file, list):
-                config_file.append(arg[1])
+                config_file.append(arg)
             elif arg in ('-d', '--daemon'):             daemon = 1
             elif arg in ('+d', '++daemon'):             daemon = 2
             elif arg in ('-x', '--reset', '--kill'):    kill += 1
@@ -218,8 +218,11 @@ for arg in sys.argv[1:]:
         if add_to_red_opts is None:
             red_opts.append(red_arg)
             add_to_red_opts = False
-        if isinstance(config_file, list):
+        if isinstance(config_file, list) and (len(config_file) > 0):
             config_file = ''.join(config_file)
+if isinstance(config_file, list):
+    sys.stderr.write('%s: error: premature end of arguments\n' % sys.argv[0])
+    sys.exit(1)
 
 
 # Parse help request for -l and -m
@@ -400,6 +403,16 @@ def use_client(sock, proc):
     sock.close()
 
 
+def start_daemon_threads(proc, sock):
+    '''
+    Start the threads for the daemon
+    
+    @param  sock:socket  The server socket
+    @param  proc:Popen   The redshift process
+    '''
+    pass
+
+
 def run_as_daemon(sock):
     '''
     Perform daemon logic
@@ -416,6 +429,8 @@ def run_as_daemon(sock):
     if red_args is not None:
         command += red_args
     proc = Popen(command, stdout = PIPE, stderr = open(os.devnull))
+    
+    start_daemon_threads(proc, sock)
     
     # Read status from redshift
     thread = threading.Thread(target = read_status, args = (proc, sock))
