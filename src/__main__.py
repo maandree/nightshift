@@ -757,8 +757,8 @@ if config_file is None:
             for v in paths:
                 files.append(v + p)
     add_files('XDG_CONFIG_HOME', '/%/%rc', '/%rc')
-    add_files('HOME',            '/.config/%/%rc', '/.%rc')
-    add_files('~',               '/.config/%/%rc', '/.%rc')
+    add_files('HOME',            '/.config/%/%rc', '/.config/%rc', '/.%rc')
+    add_files('~',               '/.config/%/%rc', '/.config/%rc', '/.%rc')
     add_files('XDG_CONFIG_DIRS', '/%rc', multi = True)
     add_files(None,              '/etc/%rc')
     for file in files:
