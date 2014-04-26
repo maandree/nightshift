@@ -77,10 +77,9 @@ def x_window_focus_thread_function(proc):
                           wm_name)
                 #sys.stderr.buffer.write((repr(window) + '\n').encode('utf-8'))
                 #sys.stderr.buffer.flush()
-            finally:
-                pass
-                #x_display.next_event()
-                #continue
+            except:
+                x_display.next_event()
+                continue
             
             # Check that something changed
             if (last is not None) and (last == window):
