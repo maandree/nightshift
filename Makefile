@@ -10,10 +10,14 @@ PREFIX ?= /usr
 BIN ?= /bin
 # The resource path excluding prefix
 DATA ?= /share
+# The documenation path excluding prefix and /share
+DOC ?= /doc
 # The command path including prefix
 BINDIR ?= $(PREFIX)$(BIN)
 # The resource path including prefix
 DATADIR ?= $(PREFIX)$(DATA)
+# The documentation path including prefix and /share
+DOCDIR ?= $(DATADIR)$(DOC)
 # The license base path including prefix
 LICENSEDIR ?= $(DATADIR)/licenses
 
@@ -26,6 +30,9 @@ PKGNAME ?= nightshift
 
 # Python source files
 PYFILES = __main__.py interface.py
+
+# Configuration script example files
+EXAMPLES = x-window-focus
 
 
 # Build rules
@@ -78,12 +85,12 @@ bin/nightshift.fish: src/completion
 # Install rules
 
 .PHONY: install
-install: install-base install-shell
+install: install-base install-examples install-shell
 
 .PHONY: install
-install-all: install-base install-shell
+install-all: install-base install-examples install-shell
 
-# Install base rules
+# Install base
 
 .PHONY: install-base
 install-base: install-command install-license
@@ -97,6 +104,13 @@ install-command: bin/nightshift
 install-license:
 	install -dm755 -- "$(DESTDIR)$(LICENSEDIR)/$(PKGNAME)"
 	install -m644 COPYING LICENSE -- "$(DESTDIR)$(LICENSEDIR)/$(PKGNAME)"
+
+# Install documentation
+
+.PHONY: install-examples
+install-examples: $(foreach E,$(EXAMPLES),examples/$(E))
+	install -dm755 -- "$(DESTDIR)$(DOCDIR)/$(PKGNAME)/examples"
+	install -m644 $^ -- "$(DESTDIR)$(DOCDIR)/$(PKGNAME)/examples"
 
 # Install shell auto-completion
 
@@ -127,6 +141,9 @@ uninstall:
 	-rm -- "$(DESTDIR)$(LICENSEDIR)/$(PKGNAME)/COPYING"
 	-rm -- "$(DESTDIR)$(LICENSEDIR)/$(PKGNAME)/LICENSE"
 	-rmdir -- "$(DESTDIR)$(LICENSEDIR)/$(PKGNAME)"
+	-rm -- $(foreach E,$(EXAMPLES),"$(DESTDIR)$(DOCDIR)/$(PKGNAME)/examples/$(E)")
+	-rmdir -- "$(DESTDIR)$(DOCDIR)/$(PKGNAME)/examples"
+	-rmdir -- "$(DESTDIR)$(DOCDIR)/$(PKGNAME)"
 	-rm -- "$(DESTDIR)$(DATADIR)/fish/completions/$(COMMAND).fish"
 	-rmdir -- "$(DESTDIR)$(DATADIR)/fish/completions"
 	-rmdir -- "$(DESTDIR)$(DATADIR)/fish"
