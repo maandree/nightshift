@@ -10,7 +10,7 @@ license=('GPL3')
 depends=(python3 redshift linux)
 makedepends=(make coreutils zip auto-auto-complete)
 source=($url/archive/$pkgver.tar.gz)
-sha256sums=(322a3dae62ccdc5b2b56be5aa4074d242acf4343d97e45cf2b6d830a7267749f)
+sha256sums=(67b92c236a8bdb838fe9290a97db14a7b38a6807d24d6101ff6fdf10128e4ad8)
 
 
 build() {
