@@ -66,10 +66,13 @@ def ui_print():
         print('\033[2KTemperature: %.0f K (day: %.0f K, night: %.0f K)' % tuple(temperature))
         print('\033[2KBrightness: %.0f %% (day: %.0f %%, night: %.0f %%)' % tuple(brightness))
         print('\033[2KDayness: %.0f %%' % (red_period * 100))
-        print('\033[2KEnabled' if red_status else 'Disabled')
+        print('\033[2K' + ('Dying' if red_dying else ('Enabled' if red_status else 'Disabled')))
         print('\033[2K\n\033[2K', end = '')
-        print(_button(0) % ('Disable' if red_status else 'Enable'), end = '  ')
-        print(_button(1) % 'Kill', end = '  ')
+        if not red_dying:
+            print(_button(0) % ('Disable' if red_status else 'Enable'), end = '  ')
+            print(_button(1) % 'Kill', end = '  ')
+        else:
+            print(_button(0, 1) % 'Kill immediately', end = '  ')
         print(_button(2) % 'Close')
     else:
         print('\033[2KNot running')
@@ -80,6 +83,7 @@ def ui_print():
 
 
 def ui_read():
+    global red_dying
     inbuf = sys.stdin.buffer
     while True:
         c = inbuf.read(1)
@@ -88,7 +92,7 @@ def ui_read():
         elif c == b'\t':
             red_condition.acquire()
             try:
-                if red_running:
+                if red_running and not red_dying:
                     ui_state['focus'] = (ui_state['focus'] + 1) % 3
                 elif ui_state['focus'] == 2:
                     ui_state['focus'] = 0
@@ -103,10 +107,11 @@ def ui_read():
                 if ui_state['focus'] == 2:
                     break
                 elif red_running:
-                    if ui_state['focus'] == 0:
+                    if (not red_dying) and (ui_state['focus'] == 0):
                         sock.sendall('toggle\n'.encode('utf-8'))
                     else:
                         sock.sendall('kill\n'.encode('utf-8'))
+                        red_dying = True
                     red_condition.notify()
                 else:
                     respawn_daemon()
@@ -161,7 +166,7 @@ def ui_status():
 
 def ui_status_callback(status):
     global red_brightness, red_temperature, red_brightnesses, red_temperatures
-    global red_period, red_location, red_status, red_running
+    global red_period, red_location, red_status, red_running, red_dying
     if status is not None:
         brightness = [float(status['%s brightness' % k]) for k in ('Current', 'Daytime', 'Night')]
         temperature = [float(status['%s temperature' % k]) for k in ('Current', 'Daytime', 'Night')]
@@ -173,6 +178,7 @@ def ui_status_callback(status):
             red_location = (float(status['Latitude']), float(status['Longitude']))
             red_status = status['Enabled'] == 'yes'
             red_running = status['Running'] == 'yes'
+            red_dying = status['Dying'] == 'yes'
             red_condition.notify()
         finally:
             red_condition.release()

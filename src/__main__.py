@@ -258,7 +258,7 @@ The pathname of the interprocess communication socket for nightshift
 red_brightness, red_temperature = 1, 6500
 red_brightnesses, red_temperatures = (1, 1), (5500, 3500)
 red_period, red_location = 1, (0, 0)
-red_status, red_running = True, True
+red_status, red_running, red_dying = True, True, False
 red_condition = None
 
 
@@ -349,6 +349,7 @@ def generate_status_message():
     message += 'Longitude: %f\n' % red_location[1]
     message += 'Enabled: %s\n' % ('yes' if red_status else 'no')
     message += 'Running: %s\n' % ('yes' if red_running else 'no')
+    message += 'Dying: %s\n' % ('yes' if red_dying else 'no')
     return message
 
 
@@ -359,6 +360,7 @@ def use_client(sock, proc):
     @param  sock:socket  The socket connected to the client
     @param  proc:Popen   The redshift process
     '''
+    global red_dying
     buf = ''
     closed = False
     while not closed:
@@ -380,6 +382,7 @@ def use_client(sock, proc):
             elif message == 'toggle':
                 proc.send_signal(signal.SIGUSR1)
             elif message == 'kill':
+                red_dying = True
                 proc.terminate()
                 import time
                 time.sleep(0.05) # XXX sometimes redshift is too slow
