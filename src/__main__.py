@@ -278,7 +278,7 @@ red_brightness, red_temperature = 1, 6500
 red_brightnesses, red_temperatures = (1, 1), (5500, 3500)
 red_period, red_location = 1, (0, 0)
 red_status, red_running, red_dying, red_froozen = True, True, False, False
-red_condition = None
+red_condition, broadcast_condition = None, None
 
 
 ## Create locale free environment for redshift
@@ -302,6 +302,9 @@ def read_status(proc, sock):
     while True:
         got = proc.stdout.readline()
         if (got is None) or (len(got) == 0):
+            if red_froozen:
+                proc.wait()
+                continue
             break
         got = got.decode('utf-8', 'replace')[:-1]
         if ': 'not in got:
@@ -351,6 +354,29 @@ def read_status(proc, sock):
     sock.shutdown(socket.SHUT_RDWR)
 
 
+def broadcast_status(sock):
+    '''
+    Broadcast status updates
+    
+    @param  sock:socket  The socket connected to the client
+    '''
+    try:
+        while True:
+            broadcast_condition.acquire()
+            try:
+                broadcast_condition.wait()
+                red_condition.acquire()
+                try:
+                    message = generate_status_message()
+                    sock.sendall((message + '\n').encode('utf-8'))
+                finally:
+                    red_condition.release()
+            finally:
+                broadcast_condition.release()
+    except:
+        pass
+
+
 def generate_status_message():
     '''
     Generate message to send to the client to inform about the status
@@ -396,9 +422,11 @@ def use_client(sock, proc):
             message, buf = buf[0], '\n'.join(buf[1:])
             if message == 'status':
                 red_condition.acquire()
-                message = generate_status_message()
-                sock.sendall((message + '\n').encode('utf-8'))
-                red_condition.release()
+                try:
+                    message = generate_status_message()
+                    sock.sendall((message + '\n').encode('utf-8'))
+                finally:
+                    red_condition.release()
             elif message == 'toggle':
                 if (not red_dying) and (not red_froozen):
                     proc.send_signal(signal.SIGUSR1)
@@ -411,14 +439,24 @@ def use_client(sock, proc):
                     if not red_status:
                         proc.send_signal(signal.SIGUSR1)
             elif message == 'freeze':
-                if not red_froozen:
-                    red_froozen = True
-                    proc.send_signal(signal.SIGTSTP)
-            elif message == 'thaw': # TODO broadcast update
-                if red_froozen:
-                    red_froozen = False
-                    proc.send_signal(signal.SIGCONT)
-            elif message == 'kill': # TODO broadcast update
+                broadcast_condition.acquire()
+                try:
+                    if not red_froozen:
+                        red_froozen = True
+                        proc.send_signal(signal.SIGTSTP)
+                    broadcast_condition.notify_all()
+                finally:
+                    broadcast_condition.release()
+            elif message == 'thaw':
+                broadcast_condition.acquire()
+                try:
+                    if red_froozen:
+                        red_froozen = False
+                        proc.send_signal(signal.SIGCONT)
+                    broadcast_condition.notify_all()
+                finally:
+                    broadcast_condition.release()
+            elif message == 'kill':
                 if red_froozen:
                     red_froozen = False
                     proc.send_signal(signal.SIGCONT)
@@ -462,10 +500,11 @@ def run_as_daemon(sock):
     
     @param  sock:socket  The server socket
     '''
-    global red_condition, red_pid
+    global red_condition, broadcast_condition, red_pid
     
-    # Create status condition
+    # Create status conditions
     red_condition = threading.Condition()
+    broadcast_condition = threading.Condition()
     
     # Start redshift
     command = ['redshift'] + red_opts
@@ -492,6 +531,10 @@ def run_as_daemon(sock):
         client_thread = threading.Thread(target = use_client, args = (client_sock, proc))
         client_thread.setDaemon(True)
         client_thread.start()
+        # Broadcast status from redshift
+        broadacast_thread = threading.Thread(target = broadcast_status, args = (client_sock,))
+        broadacast_thread.setDaemon(True)
+        broadacast_thread.start()
         red_condition.acquire()
     
     if not broke:
@@ -615,8 +658,9 @@ def create_daemon():
     if pid == 0:
         ## Daemon (child)
         # Close stdin and stdout
-        os.close(sys.stdin.fileno())
-        os.close(sys.stdout.fileno())
+        if ('DEBUG' not in os.environ) or (not os.environ['DEBUG'] == 'yes'):
+            os.close(sys.stdin.fileno())
+            os.close(sys.stdout.fileno())
         
         # Create server socket
         try:
