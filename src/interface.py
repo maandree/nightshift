@@ -69,7 +69,7 @@ def ui_print():
         print('\033[2K' + ('Dying' if red_dying else ('Enabled' if red_status else 'Disabled')))
         print('\033[2K\n\033[2K', end = '')
         if not red_dying:
-            if red_froozen:
+            if red_frozen:
                 print(_button(0, 1) % 'Thaw', end = '  ')
                 print(_button(2) % 'Kill', end = '  ')
                 print(_button(3) % 'Close')
@@ -90,7 +90,7 @@ def ui_print():
 
 
 def ui_read():
-    global red_dying, red_froozen
+    global red_dying, red_frozen
     inbuf = sys.stdin.buffer
     while True:
         c = inbuf.read(1)
@@ -100,10 +100,10 @@ def ui_read():
             red_condition.acquire()
             try:
                 if red_running and not red_dying:
-                    if red_froozen and (ui_state['focus'] == 0):
+                    if red_frozen and (ui_state['focus'] == 0):
                         ui_state['focus'] = 1
                     ui_state['focus'] = (ui_state['focus'] + 1) % 4
-                    if red_froozen and (ui_state['focus'] == 0):
+                    if red_frozen and (ui_state['focus'] == 0):
                         ui_state['focus'] = 1
                 elif ui_state['focus'] == 3:
                     ui_state['focus'] = 0
@@ -121,15 +121,15 @@ def ui_read():
                     if red_dying or (ui_state['focus'] == 2):
                         sock.sendall('kill\n'.encode('utf-8'))
                         red_dying = True
-                    elif red_froozen:
+                    elif red_frozen:
                         sock.sendall('thaw\n'.encode('utf-8'))
-                        red_froozen = False
+                        red_frozen = False
                     else:
                         if ui_state['focus'] == 0:
                             sock.sendall('toggle\n'.encode('utf-8'))
                         elif ui_state['focus'] == 1:
                             sock.sendall('freeze\n'.encode('utf-8'))
-                            red_froozen = True
+                            red_frozen = True
                     red_condition.notify()
                 else:
                     respawn_daemon()
@@ -184,7 +184,7 @@ def ui_status():
 
 def ui_status_callback(status):
     global red_brightness, red_temperature, red_brightnesses, red_temperatures
-    global red_period, red_location, red_status, red_running, red_dying, red_froozen
+    global red_period, red_location, red_status, red_running, red_dying, red_frozen
     if status is not None:
         brightness  = [float(status['%s brightness' % k])  for k in ('Current', 'Daytime', 'Night')]
         temperature = [float(status['%s temperature' % k]) for k in ('Current', 'Daytime', 'Night')]
@@ -197,7 +197,7 @@ def ui_status_callback(status):
             red_status   = status['Enabled'] == 'yes'
             red_running  = status['Running'] == 'yes'
             red_dying    = status['Dying']   == 'yes'
-            red_froozen  = status['Froozen'] == 'yes'
+            red_frozen  = status['Frozen'] == 'yes'
             red_condition.notify()
         finally:
             red_condition.release()

@@ -106,7 +106,7 @@ set_status = None
 
 set_freeze = None
 '''
-:bool?  `True` if redshift should be froozen, `False` for thawed, otherwise `None`
+:bool?  `True` if redshift should be frozen, `False` for thawed, otherwise `None`
 '''
 
 status = False
@@ -277,7 +277,7 @@ The pathname of the interprocess communication socket for nightshift
 red_brightness, red_temperature = 1, 6500
 red_brightnesses, red_temperatures = (1, 1), (5500, 3500)
 red_period, red_location = 1, (0, 0)
-red_status, red_running, red_dying, red_froozen = True, True, False, False
+red_status, red_running, red_dying, red_frozen = True, True, False, False
 red_condition, broadcast_condition = None, None
 
 
@@ -302,7 +302,7 @@ def read_status(proc, sock):
     while True:
         got = proc.stdout.readline()
         if (got is None) or (len(got) == 0):
-            if red_froozen:
+            if red_frozen:
                 proc.wait()
                 continue
             break
@@ -395,7 +395,7 @@ def generate_status_message():
     message += 'Enabled: %s\n'             % ('yes' if red_status  else 'no')
     message += 'Running: %s\n'             % ('yes' if red_running else 'no')
     message += 'Dying: %s\n'               % ('yes' if red_dying   else 'no')
-    message += 'Froozen: %s\n'             % ('yes' if red_froozen else 'no')
+    message += 'Frozen: %s\n'              % ('yes' if red_frozen  else 'no')
     return message
 
 
@@ -406,7 +406,7 @@ def use_client(sock, proc):
     @param  sock:socket  The socket connected to the client
     @param  proc:Popen   The redshift process
     '''
-    global red_dying, red_froozen
+    global red_dying, red_frozen
     buf = ''
     closed = False
     while not closed:
@@ -428,21 +428,21 @@ def use_client(sock, proc):
                 finally:
                     red_condition.release()
             elif message == 'toggle':
-                if (not red_dying) and (not red_froozen):
+                if (not red_dying) and (not red_frozen):
                     proc.send_signal(signal.SIGUSR1)
             elif message == 'disable':
-                if (not red_dying) and (not red_froozen):
+                if (not red_dying) and (not red_frozen):
                     if red_status:
                         proc.send_signal(signal.SIGUSR1)
             elif message == 'enable':
-                if (not red_dying) and (not red_froozen):
+                if (not red_dying) and (not red_frozen):
                     if not red_status:
                         proc.send_signal(signal.SIGUSR1)
             elif message == 'freeze':
                 broadcast_condition.acquire()
                 try:
-                    if not red_froozen:
-                        red_froozen = True
+                    if not red_frozen:
+                        red_frozen = True
                         proc.send_signal(signal.SIGTSTP)
                     broadcast_condition.notify_all()
                 finally:
@@ -450,15 +450,15 @@ def use_client(sock, proc):
             elif message == 'thaw':
                 broadcast_condition.acquire()
                 try:
-                    if red_froozen:
-                        red_froozen = False
+                    if red_frozen:
+                        red_frozen = False
                         proc.send_signal(signal.SIGCONT)
                     broadcast_condition.notify_all()
                 finally:
                     broadcast_condition.release()
             elif message == 'kill':
-                if red_froozen:
-                    red_froozen = False
+                if red_frozen:
+                    red_frozen = False
                     proc.send_signal(signal.SIGCONT)
                 red_dying = True
                 proc.terminate()
