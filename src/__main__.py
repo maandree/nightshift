@@ -99,6 +99,16 @@ toggle = False
 :bool  Whether or not to toggle redshift
 '''
 
+set_status = None
+'''
+:bool?  `True` if redshift should be enabled, `False` for disble, otherwise `None`
+'''
+
+set_freeze = None
+'''
+:bool?  `True` if redshift should be froozen, `False` for thawed, otherwise `None`
+'''
+
 status = False
 '''
 :bool  Whether or not to get the current status
@@ -163,6 +173,10 @@ for arg in sys.argv[1:]:
                     -d --daemon                     Start as daemon
                     -x --reset --kill               Remove adjustment from screen
                     +x --toggle                     Temporarily disable or enable adjustments
+                    +d --disable                    Temporarily disable adjustments
+                    +e --enable                     Re-enable adjustments
+                    +f --freeze                     Temporarily freeze the redshift process
+                    +t --thaw                       Thaw the redshift process
                     -s --status                     Print status information
                     +c --script         FILE        Load nightshift configuration script from specified file
                     
@@ -190,6 +204,7 @@ for arg in sys.argv[1:]:
         subargs = [arg]
         if   arg.startswith('-') and not arg.startswith('--'):  subargs = ['-' + letter for letter in arg[1:]]
         elif arg.startswith('+') and not arg.startswith('++'):  subargs = ['+' + letter for letter in arg[1:]]
+        elif arg.startswith('=') and not arg.startswith('=='):  subargs = ['=' + letter for letter in arg[1:]]
         red_arg = ''
         for arg in subargs:
             if (add_to_red_opts is None) or add_to_red_opts:
@@ -198,9 +213,13 @@ for arg in sys.argv[1:]:
             elif isinstance(config_file, list):
                 config_file.append(arg)
             elif arg in ('-d', '--daemon'):             daemon = 1
-            elif arg in ('+d', '++daemon'):             daemon = 2
+            elif arg in ('=d', '==daemon'):             daemon = 2
             elif arg in ('-x', '--reset', '--kill'):    kill += 1
             elif arg in ('+x', '--toggle'):             toggle = True
+            elif arg in ('+d', '--disable'):            set_status = False
+            elif arg in ('+e', '--enable'):             set_status = True
+            elif arg in ('+f', '--freeze'):             set_freeze = True
+            elif arg in ('+t', '--thaw'):               set_freeze = False
             elif arg in ('-s', '--status'):             status = True
             elif arg in ('+c', '--script'):             config_file = []
             else:
@@ -258,7 +277,7 @@ The pathname of the interprocess communication socket for nightshift
 red_brightness, red_temperature = 1, 6500
 red_brightnesses, red_temperatures = (1, 1), (5500, 3500)
 red_period, red_location = 1, (0, 0)
-red_status, red_running, red_dying = True, True, False
+red_status, red_running, red_dying, red_froozen = True, True, False, False
 red_condition = None
 
 
@@ -338,18 +357,19 @@ def generate_status_message():
     
     @return  :str  Status message
     '''
-    message =  'Current brightness: %f\n' % red_brightness
-    message += 'Daytime brightness: %f\n' % red_brightnesses[0]
-    message += 'Night brightness: %f\n' % red_brightnesses[1]
+    message =  'Current brightness: %f\n'  % red_brightness
+    message += 'Daytime brightness: %f\n'  % red_brightnesses[0]
+    message += 'Night brightness: %f\n'    % red_brightnesses[1]
     message += 'Current temperature: %f\n' % red_temperature
     message += 'Daytime temperature: %f\n' % red_temperatures[0]
-    message += 'Night temperature: %f\n' % red_temperatures[1]
-    message += 'Dayness: %f\n' % red_period
-    message += 'Latitude: %f\n' % red_location[0]
-    message += 'Longitude: %f\n' % red_location[1]
-    message += 'Enabled: %s\n' % ('yes' if red_status else 'no')
-    message += 'Running: %s\n' % ('yes' if red_running else 'no')
-    message += 'Dying: %s\n' % ('yes' if red_dying else 'no')
+    message += 'Night temperature: %f\n'   % red_temperatures[1]
+    message += 'Dayness: %f\n'             % red_period
+    message += 'Latitude: %f\n'            % red_location[0]
+    message += 'Longitude: %f\n'           % red_location[1]
+    message += 'Enabled: %s\n'             % ('yes' if red_status  else 'no')
+    message += 'Running: %s\n'             % ('yes' if red_running else 'no')
+    message += 'Dying: %s\n'               % ('yes' if red_dying   else 'no')
+    message += 'Froozen: %s\n'             % ('yes' if red_froozen else 'no')
     return message
 
 
@@ -360,7 +380,7 @@ def use_client(sock, proc):
     @param  sock:socket  The socket connected to the client
     @param  proc:Popen   The redshift process
     '''
-    global red_dying
+    global red_dying, red_froozen
     buf = ''
     closed = False
     while not closed:
@@ -380,8 +400,28 @@ def use_client(sock, proc):
                 sock.sendall((message + '\n').encode('utf-8'))
                 red_condition.release()
             elif message == 'toggle':
-                proc.send_signal(signal.SIGUSR1)
-            elif message == 'kill':
+                if (not red_dying) and (not red_froozen):
+                    proc.send_signal(signal.SIGUSR1)
+            elif message == 'disable':
+                if (not red_dying) and (not red_froozen):
+                    if red_status:
+                        proc.send_signal(signal.SIGUSR1)
+            elif message == 'enable':
+                if (not red_dying) and (not red_froozen):
+                    if not red_status:
+                        proc.send_signal(signal.SIGUSR1)
+            elif message == 'freeze':
+                if not red_froozen:
+                    red_froozen = True
+                    proc.send_signal(signal.SIGTSTP)
+            elif message == 'thaw': # TODO broadcast update
+                if red_froozen:
+                    red_froozen = False
+                    proc.send_signal(signal.SIGCONT)
+            elif message == 'kill': # TODO broadcast update
+                if red_froozen:
+                    red_froozen = False
+                    proc.send_signal(signal.SIGCONT)
                 red_dying = True
                 proc.terminate()
                 import time
@@ -461,13 +501,14 @@ def run_as_daemon(sock):
 
 def do_daemon(reexec):
     '''
-    Run actions for --daemon or ++daemon
+    Run actions for --daemon or ==daemon
     
-    @param  reexec:bool  Wether to perform actions for ++daemon
+    @param  reexec:bool  Wether to perform actions for ==daemon
     '''
     if not reexec:
-        if (kill > 0) or toggle or status:
-            print('%s: error: -x, +x and -s can be used when running as the daemon' % sys.argv[0])
+        if (kill > 0) or toggle or (set_status is not None) or (set_freeze is not None) or status:
+            disallowed = '-x, +x, +e, +d, +f, +t and -s'
+            print('%s: error: %s can be used when running as the daemon' % (disallowed, sys.argv[0]))
             sys.exit(1)
     
     # Create server socket
@@ -521,6 +562,34 @@ def do_toggle():
     Run actions for --toggle
     '''
     sock.sendall('toggle\n'.encode('utf-8'))
+
+
+def do_disable():
+    '''
+    Run actions for --disable
+    '''
+    sock.sendall('disable\n'.encode('utf-8'))
+
+
+def do_enable():
+    '''
+    Run actions for --enable
+    '''
+    sock.sendall('enable\n'.encode('utf-8'))
+
+
+def do_freeze():
+    '''
+    Run actions for --freeze
+    '''
+    sock.sendall('freeze\n'.encode('utf-8'))
+
+
+def do_thaw():
+    '''
+    Run actions for --thaw
+    '''
+    sock.sendall('thaw\n'.encode('utf-8'))
 
 
 def do_kill():
@@ -621,10 +690,22 @@ def run_as_client():
     Perform client actions
     '''
     # Temporarily disable or enable redshift
-    if toggle:
+    if set_status is not None:
+        if set_status:
+            do_enable()
+        else:
+            do_disable()
+    elif toggle:
         do_toggle()
     
-    # Kill redshift and the night daemon
+    # Freeze or thaw redshift
+    if set_freeze is not None:
+        if set_freeze:
+            do_freeze()
+        else:
+            do_thaw()
+    
+    # Kill redshift and the nightshift daemon
     if kill > 0:
         do_kill()
     
@@ -634,7 +715,7 @@ def run_as_client():
         sock.close()
     
     # Start user interface
-    if (kill == 0) and not (status or toggle):
+    if (kill == 0) and not (status or toggle or (set_status is not None) or (set_freeze is not None)):
         sock.sendall('listen\n'.encode('utf-8'))
         user_interface()
 
@@ -685,7 +766,8 @@ def respawn_daemon():
         os.close(w_end)
         
         # Reexecute image
-        os.execl('/proc/self/exe', '/proc/self/exe', *(sys.argv + ['+d']))
+        exe = os.readlink('/proc/self/exe')
+        os.execl(exe, exe, *(sys.argv + ['==daemon']))
     else:
         ## Front-end (parent)
         # Wait for a signal
@@ -703,7 +785,7 @@ def respawn_daemon():
 
 def run():
     '''
-    Run as either the daemon (if --daemon or ++daemon) or as a client (otherwise)
+    Run as either the daemon (if --daemon or ==daemon) or as a client (otherwise)
     '''
     if daemon > 0:
         do_daemon(daemon == 2)

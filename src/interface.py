@@ -69,21 +69,28 @@ def ui_print():
         print('\033[2K' + ('Dying' if red_dying else ('Enabled' if red_status else 'Disabled')))
         print('\033[2K\n\033[2K', end = '')
         if not red_dying:
-            print(_button(0) % ('Disable' if red_status else 'Enable'), end = '  ')
-            print(_button(1) % 'Kill', end = '  ')
+            if red_froozen:
+                print(_button(0, 1) % 'Thaw', end = '  ')
+                print(_button(2) % 'Kill', end = '  ')
+                print(_button(3) % 'Close')
+            else:
+                print(_button(0) % ('Disable' if red_status else 'Enable'), end = '  ')
+                print(_button(1) % 'Freeze', end = '  ')
+                print(_button(2) % 'Kill', end = '  ')
+                print(_button(3) % 'Close')
         else:
-            print(_button(0, 1) % 'Kill immediately', end = '  ')
-        print(_button(2) % 'Close')
+            print(_button(0, 1, 2) % 'Kill immediately', end = '  ')
+            print(_button(3) % 'Close')
     else:
         print('\033[2KNot running')
         print('\033[2K\n\033[2K', end = '')
-        print(_button(0, 1) % 'Revive', end = '  ')
-        print(_button(2) % 'Close')
+        print(_button(0, 1, 2) % 'Revive', end = '  ')
+        print(_button(3) % 'Close')
     print('\033[J')
 
 
 def ui_read():
-    global red_dying
+    global red_dying, red_froozen
     inbuf = sys.stdin.buffer
     while True:
         c = inbuf.read(1)
@@ -93,25 +100,36 @@ def ui_read():
             red_condition.acquire()
             try:
                 if red_running and not red_dying:
-                    ui_state['focus'] = (ui_state['focus'] + 1) % 3
-                elif ui_state['focus'] == 2:
+                    if red_froozen and (ui_state['focus'] == 0):
+                        ui_state['focus'] = 1
+                    ui_state['focus'] = (ui_state['focus'] + 1) % 4
+                    if red_froozen and (ui_state['focus'] == 0):
+                        ui_state['focus'] = 1
+                elif ui_state['focus'] == 3:
                     ui_state['focus'] = 0
                 else:
-                    ui_state['focus'] = 2
+                    ui_state['focus'] = 3
                 red_condition.notify()
             finally:
                 red_condition.release()
         elif c in b' \n':
             red_condition.acquire()
             try:
-                if ui_state['focus'] == 2:
+                if ui_state['focus'] == 3:
                     break
                 elif red_running:
-                    if (not red_dying) and (ui_state['focus'] == 0):
-                        sock.sendall('toggle\n'.encode('utf-8'))
-                    else:
+                    if red_dying or (ui_state['focus'] == 2):
                         sock.sendall('kill\n'.encode('utf-8'))
                         red_dying = True
+                    elif red_froozen:
+                        sock.sendall('thaw\n'.encode('utf-8'))
+                        red_froozen = False
+                    else:
+                        if ui_state['focus'] == 0:
+                            sock.sendall('toggle\n'.encode('utf-8'))
+                        elif ui_state['focus'] == 1:
+                            sock.sendall('freeze\n'.encode('utf-8'))
+                            red_froozen = True
                     red_condition.notify()
                 else:
                     respawn_daemon()
@@ -166,19 +184,20 @@ def ui_status():
 
 def ui_status_callback(status):
     global red_brightness, red_temperature, red_brightnesses, red_temperatures
-    global red_period, red_location, red_status, red_running, red_dying
+    global red_period, red_location, red_status, red_running, red_dying, red_froozen
     if status is not None:
-        brightness = [float(status['%s brightness' % k]) for k in ('Current', 'Daytime', 'Night')]
+        brightness  = [float(status['%s brightness' % k])  for k in ('Current', 'Daytime', 'Night')]
         temperature = [float(status['%s temperature' % k]) for k in ('Current', 'Daytime', 'Night')]
         red_condition.acquire()
         try:
-            red_brightness, red_brightnesses = brightness[0], tuple(brightness[1:])
+            red_brightness,  red_brightnesses = brightness[0],  tuple(brightness[1:])
             red_temperature, red_temperatures = temperature[0], tuple(temperature[1:])
-            red_period = float(status['Dayness'])
+            red_period   = float(status['Dayness'])
             red_location = (float(status['Latitude']), float(status['Longitude']))
-            red_status = status['Enabled'] == 'yes'
-            red_running = status['Running'] == 'yes'
-            red_dying = status['Dying'] == 'yes'
+            red_status   = status['Enabled'] == 'yes'
+            red_running  = status['Running'] == 'yes'
+            red_dying    = status['Dying']   == 'yes'
+            red_froozen  = status['Froozen'] == 'yes'
             red_condition.notify()
         finally:
             red_condition.release()

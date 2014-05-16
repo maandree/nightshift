@@ -24,6 +24,10 @@
   (unargumented (options -d --daemon)        (complete --daemon)                                          (desc 'Start as daemon'))
   (unargumented (options -x --reset --kill)  (complete --kill)                                            (desc 'Remove adjustment from screen'))
   (unargumented (options +x --toggle)        (complete --toggle)                                          (desc 'Temporarily disable or enable adjustments'))
+  (unargumented (options +d --disable)       (complete --disable)                                         (desc 'Temporarily disable adjustments'))
+  (unargumented (options +e --enable)        (complete --enable)                                          (desc 'Re-enable adjustments'))
+  (unargumented (options +f --freeze)        (complete --freeze)                                          (desc 'Freeze the redshift process'))
+  (unargumented (options +t --thaw)          (complete --thaw)                                            (desc 'Thaw the redshift process'))
   (unargumented (options -s --status)        (complete --status)                                          (desc 'Print status information'))
   (argumented   (options +c --script)        (complete --script)        (arg FILE)             (files -f) (desc 'Load nightshift configuration script from specified file'))
   
