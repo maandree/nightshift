@@ -95,7 +95,7 @@ def x_window_focus_thread_function(proc):
                 should_be_disabled = True
             
             # Perhaps toggle
-            if red_running and (should_be_disabled == red_status):
+            if red_running and (should_be_disabled == red_status) and not red_dying:
                 if red_status or we_disabled:
                     we_disabled = should_be_disabled
                     proc.send_signal(signal.SIGUSR1)
