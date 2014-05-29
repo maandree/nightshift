@@ -314,7 +314,10 @@ def read_status(proc, sock):
             red_condition.acquire()
         try:
             if key == 'Location':
-                red_location = [float(v) for v in value.split(', ')]
+                def coordcomp(v):
+                    v = (v + ' N').split(' ')[:2]
+                    return float(v[0]) * (-1 if v[1] in 'SW' else 1)
+                red_location = [coordcomp(v) for v in value.split(', ')]
                 # Followed by 'Temperatures'
             elif key == 'Temperatures':
                 red_temperatures = [float(v.split(' ')[0][:-1]) for v in value.split(', ')]
