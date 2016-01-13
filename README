@@ -1,7 +1,95 @@
-nightshift is a terminal user interface for redshift
+NAME
+	nightshift - A terminal user interface for redshift
 
-The goal of this project is to provide high capabilities
-to redshift when it becomes a D-Bus services, and do
-so with a nice terminal user interface and a command line
-interface with a daemon running in the background.
+SYNOPSIS
+	nightshift [OPTIONS]... [\{ [SCRIPT-OPTIONS]... \}] [-- [REDSHIFT-OPTIONS]...]
+
+DESCRIPTION
+	Terminal user interface for redshift, a program for
+	setting the colour temperature of the display according
+	to the time of day.
+
+	The goal of this project is to provide high capabilities
+	to redshift when it becomes a D-Bus services, and do so
+	with a nice terminal user interface and a command line
+	interface with a daemon running in the background.
+
+OPTIONS
+	-h, --help
+		Display this help message.
+
+	-V, --version
+		Show program version.
+
+	-C, --copyright
+		Show program copyright information.
+
+	-W, --warranty
+		Show program warrantly disclaimer.
+
+	-d, --daemon
+		Start as daemon.
+
+	-x, --reset, --kill
+		Remove adjustment from screen.
+
+	+x, --toggle
+		Temporarily disable or enable adjustments.
+
+	+d, --disable
+		Temporarily disable adjustments.
+
+	+e, --enable
+		Re-enable adjustments.
+
+	+f, --freeze
+		Temporarily freeze the redshift process.
+
+	+t, --thaw
+		Thaw the redshift process.
+
+	-s, --status
+		Print status information.
+
+	+c, --script FILE
+		Load nightshift configuration script from
+		specified file.
+
+	-c, --config FILE
+		Load redshift settings from specified file.
+
+	-b, --brightness DAY:NIGHT
+		Screen brightness to set at daytime/night.
+
+	-b, --brightness BRIGHTNESS
+		Screen brightness to apply.
+
+	-t, --temperature DAY:NIGHT
+		Colour temperature to set at daytime/night.
+
+	-t, --temperature TEMP
+		Colour temperature to apply.
+
+	-l, --location LAT:LON
+		Your current location.
+
+	-l, --location PROVIDER
+		Select provider for automatic location updates.
+		(Type `list' to see available providers.)
+
+	-m, --method METHOD
+		Method to use to set colour temperature.
+	        (Type `list' to see available methods.)
+
+	-r, --no-transition
+		Disable temperature transitions.
+
+NOTES
+	Apple is using the name of this project for there own
+	alternative without my permission and with my express
+	opposition.
+
+SEE ALSO
+	redshift(1), blueshift(1)
+
 
