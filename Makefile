@@ -5,28 +5,28 @@
 
 
 # The package path prefix, if you want to install to another root, set DESTDIR to that root
-PREFIX ?= /usr
+PREFIX = /usr
 # The command path excluding prefix
-BIN ?= /bin
+BIN = /bin
 # The resource path excluding prefix
-DATA ?= /share
+DATA = /share
 # The documenation path excluding prefix and /share
-DOC ?= /doc
+DOC = /doc
 # The command path including prefix
-BINDIR ?= $(PREFIX)$(BIN)
+BINDIR = $(PREFIX)$(BIN)
 # The resource path including prefix
-DATADIR ?= $(PREFIX)$(DATA)
+DATADIR = $(PREFIX)$(DATA)
 # The documentation path including prefix and /share
-DOCDIR ?= $(DATADIR)$(DOC)
+DOCDIR = $(DATADIR)$(DOC)
 # The license base path including prefix
-LICENSEDIR ?= $(DATADIR)/licenses
+LICENSEDIR = $(DATADIR)/licenses
 
 # Python 3 command to use in shebangs
-SHEBANG ?= /usr/bin/env python3
+SHEBANG = /usr/bin/env python3
 # The name of the command as it should be installed
-COMMAND ?= nightshift
+COMMAND = nightshift
 # The name of the package as it should be installed
-PKGNAME ?= nightshift
+PKGNAME = nightshift
 
 # Python source files
 PYFILES = __main__.py interface.py
