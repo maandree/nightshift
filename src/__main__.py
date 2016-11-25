@@ -414,7 +414,7 @@ def use_client(sock, proc):
     closed = False
     while not closed:
         try:
-            got = sock.recv(128).decode('utf-8', 'error')
+            got = sock.recv(128).decode('utf-8', 'strict')
             if (got is None) or (len(got) == 0):
                 break
         except:
@@ -912,7 +912,7 @@ if config_file is not None:
     # Decode configurion script file and add a line break
     # at the end to ensure that the last line is empty.
     # If it is not, we will get errors.
-    code = code.decode('utf-8', 'error') + '\n'
+    code = code.decode('utf-8', 'strict') + '\n'
     # Compile the configuration script,
     code = compile(code, config_file, 'exec')
     # and run it, with it have the same
