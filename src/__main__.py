@@ -2,7 +2,7 @@
 # -*- python -*-
 copyright='''
 nightshift - A terminal user interface for redshift
-Copyright © 2014  Mattias Andrée (maandree@member.fsf.org)
+Copyright © 2014  Mattias Andrée (m@maandree.se)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -191,8 +191,6 @@ for arg in sys.argv[1:]:
                     -m --method         METHOD      Method to use to set colour temperature
                                                     (Type `list' to see available methods)
                     -r --no-transition              Disable temperature transitions
-                  
-                  Please report bugs to <https://github.com/maandree/nightshift/issues>
                '''
         text = text.split('\n')[:-1]
         indent = min([len(line) - len(line.lstrip()) for line in text if line.rstrip().startswith(' ')])
