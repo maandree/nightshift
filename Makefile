@@ -66,5 +66,6 @@ uninstall:
 
 clean:
 	-rm -f -- nightshift nightshift.zip nightshift.bash nightshift.fish nightshift.zsh
+	-rm -rf -- __pycache__
 
 .PHONY: all install uninstall clean
