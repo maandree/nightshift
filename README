@@ -85,11 +85,9 @@ OPTIONS
 		Disable temperature transitions.
 
 NOTES
-	Apple is using the name of this project for there own
+	Apple is using the name of this project for their own
 	alternative without my permission and with my express
 	opposition.
 
 SEE ALSO
-	redshift(1), blueshift(1)
-
-
+	redshift(1), blueshift(1), radharc(1)
