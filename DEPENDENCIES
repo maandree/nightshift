@@ -6,7 +6,7 @@ RUNTIME DEPENDENCIES:
 
 MAKE DEPENDENCIES:
 
-	auto-auto-complete (opt-out)
+	auto-auto-complete
 	make
 	zip
 	coreutils
