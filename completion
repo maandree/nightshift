@@ -4,7 +4,7 @@
   (unargumented (options -h --help)          (complete --help)                                            (desc 'Display this help message'))
   (unargumented (options -V --version)       (complete --version)                                         (desc 'Show program version'))
   (unargumented (options -C --copyright)     (complete --copyright)                                       (desc 'Show program copyright information'))
-  (unargumented (options -W --warranty)      (complete --warranty)                                        (desc 'Show program warrantly disclaimer'))
+  (unargumented (options -W --warranty)      (complete --warranty)                                        (desc 'Show program warranty disclaimer'))
   
   (unargumented (options -d --daemon)        (complete --daemon)                                          (desc 'Start as daemon'))
   (unargumented (options -x --reset --kill)  (complete --kill)                                            (desc 'Remove adjustment from screen'))

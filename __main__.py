@@ -101,7 +101,7 @@ toggle = False
 
 set_status = None
 '''
-:bool?  `True` if redshift should be enabled, `False` for disble, otherwise `None`
+:bool?  `True` if redshift should be enabled, `False` for disable, otherwise `None`
 '''
 
 set_freeze = None
@@ -117,7 +117,7 @@ status = False
 conf_opts = []
 '''
 :list<str>  This list will always have at least one element. This list is filled
-            with options passed to the configurations, with the first element
+            with options passed to the configuration, with the first element
             being the configuration file
 '''
 
@@ -168,7 +168,7 @@ for arg in sys.argv[1:]:
                     -h --help                       Display this help message
                     -V --version                    Show program version
                     -C --copyright                  Show program copyright information
-                    -W --warranty                   Show program warrantly disclaimer
+                    -W --warranty                   Show program warranty disclaimer
                     
                     -d --daemon                     Start as daemon
                     -x --reset --kill               Remove adjustment from screen

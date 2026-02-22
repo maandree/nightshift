@@ -10,7 +10,7 @@ DESCRIPTION
 	to the time of day.
 
 	The goal of this project is to provide high capabilities
-	to redshift when it becomes a D-Bus services, and do so
+	to redshift when it becomes a D-Bus service, and do so
 	with a nice terminal user interface and a command line
 	interface with a daemon running in the background.
 
@@ -25,7 +25,7 @@ OPTIONS
 		Show program copyright information.
 
 	-W, --warranty
-		Show program warrantly disclaimer.
+		Show program warranty disclaimer.
 
 	-d, --daemon
 		Start as daemon.

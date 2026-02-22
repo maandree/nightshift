@@ -1,4 +1,4 @@
 Freeze/thaw bug: if the client closes, the redshift instance will too for some reason if it is frozen.
 
-A problem with having nigthshift clients open is that both
+A problem with having nightshift clients open is that both
 will be able start a new nightshift daemon if redshift exists.
